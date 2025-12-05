@@ -1,0 +1,190 @@
+{
+  "spending_strategies": {
+    "Moderate Spending": {
+      "base_monthly_spend": 0.0,
+      "spending_items": [
+        {
+          "name": "Katie Car",
+          "monthly_amount": 1000.0,
+          "start_year": 2030,
+          "end_year": null
+        },
+        {
+          "name": "Zach Car",
+          "monthly_amount": 1000.0,
+          "start_year": 2030,
+          "end_year": null
+        },
+        {
+          "name": "Utilities",
+          "monthly_amount": 1000.0,
+          "start_year": null,
+          "end_year": null
+        },
+        {
+          "name": "Gym and Spa",
+          "monthly_amount": 500.0,
+          "start_year": null,
+          "end_year": null
+        },
+        {
+          "name": "Travel",
+          "monthly_amount": 2000.0,
+          "start_year": null,
+          "end_year": null
+        },
+        {
+          "name": "House Spending",
+          "monthly_amount": 1000.0,
+          "start_year": null,
+          "end_year": null
+        },
+        {
+          "name": "Katie Spending",
+          "monthly_amount": 1000.0,
+          "start_year": null,
+          "end_year": null
+        },
+        {
+          "name": "Zach Spending",
+          "monthly_amount": 1000.0,
+          "start_year": null,
+          "end_year": null
+        },
+        {
+          "name": "Healthcare",
+          "monthly_amount": 2000.0,
+          "start_year": 2030,
+          "end_year": null
+        },
+        {
+          "name": "Food and Eating Out",
+          "monthly_amount": 1500.0,
+          "start_year": null,
+          "end_year": null
+        }
+      ],
+      "location": "Alabama",
+      "has_mortgage": false,
+      "mortgage_payment": 0.0,
+      "mortgage_years": 0,
+      "housing_projects": [
+        {
+          "name": "New House",
+          "purchase_year": 2030,
+          "price": 500000.0,
+          "down_payment": 100000.0,
+          "interest_rate": 6.5,
+          "term_years": 30,
+          "appreciation_rate": 0.03,
+          "selling_costs": 0.06,
+          "sale_year": null
+        },
+        {
+          "name": "New House",
+          "purchase_year": 2030,
+          "price": 500000.0,
+          "down_payment": 100000.0,
+          "interest_rate": 6.5,
+          "term_years": 30,
+          "appreciation_rate": 0.03,
+          "selling_costs": 0.06
+        }
+      ],
+      "has_future_house": false,
+      "num_kids": 4,
+      "children": [
+        {
+          "name": "Theodore",
+          "birth_year": 2025,
+          "phases": [],
+          "profile": "Public School, No Daycare"
+        },
+        {
+          "name": "Camille",
+          "birth_year": 2027,
+          "phases": [],
+          "profile": "Public School, No Daycare"
+        },
+        {
+          "name": "Henry",
+          "birth_year": 2028,
+          "phases": [],
+          "profile": "Public School, No Daycare"
+        },
+        {
+          "name": "Danielle",
+          "birth_year": 2030,
+          "phases": [],
+          "profile": "Public School, No Daycare"
+        }
+      ],
+      "child_profiles": {
+        "Public School, No Daycare": [
+          {
+            "name": "Early years",
+            "start_age": 0,
+            "end_age": 2,
+            "monthly_cost": 550.0
+          },
+          {
+            "name": "Preschool with tuition",
+            "start_age": 3,
+            "end_age": 5,
+            "monthly_cost": 1000.0
+          },
+          {
+            "name": "Elementary With summer camp",
+            "start_age": 6,
+            "end_age": 11,
+            "monthly_cost": 1100.0
+          },
+          {
+            "name": "Middle School",
+            "start_age": 12,
+            "end_age": 14,
+            "monthly_cost": 1500.0
+          },
+          {
+            "name": "High School",
+            "start_age": 15,
+            "end_age": 18,
+            "monthly_cost": 1300.0
+          }
+        ]
+      }
+    }
+  },
+  "portfolio_strategies": {
+    "Midrange IPO": {
+      "liquid_assets": 400000.0,
+      "retirement_assets": 300000.0,
+      "private_shares": 18000.0,
+      "private_ipo_price": 300.0,
+      "private_ipo_year": 2026,
+      "diversification_start_year": 2027,
+      "diversification_duration": 10,
+      "stock_alloc_pct": 100.0,
+      "bond_return_pct": 4.0,
+      "inflation_rate": 0.03,
+      "income_streams": [
+        {
+          "name": "Low Range Startup",
+          "start_year": 2025,
+          "end_year": 2030,
+          "annual_amount": 250000.0
+        }
+      ]
+    },
+    "High IPO": {
+      "liquid_assets": 400000.0,
+      "retirement_assets": 300000.0,
+      "private_shares": 18000.0,
+      "private_ipo_price": 400.0,
+      "private_ipo_year": 2026,
+      "stock_alloc_pct": 100.0,
+      "bond_return_pct": 4.0,
+      "inflation_rate": 0.03
+    }
+  }
+}

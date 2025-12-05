@@ -1,0 +1,86 @@
+Inputs,W-2 Income (Combined),"400,000.00"
+Inputs,Filing Status,Married Filing Jointly
+Inputs,Standard Deduction (2025),"30,000.00"
+Inputs,AMT Exemption (2025 estimate),"137,000.00"
+Inputs,AMT Phase-out Threshold (2025 estimate),"1,218,700.00"
+Inputs,Discount Rate (for TVM),0.05
+Inputs,Max Sellable Shares,"3,261.00"
+Inputs,Strike,13.47
+Inputs,Strike,13.47
+Inputs,Shares at 4 years,"18,972.00"
+Inputs,Already Exercise,"8,500.00"
+Inputs,Remaining shared after exercises,"10,472.00"
+Inputs,Vested as of April 8 2024,"13,044.00"
+,,
+,Year,"2,025.00"
+"BUY
+Exercise
+
+only pay AMT on that which you buy from excecise",Shares Exercised,"6,000.00"
+,Remaining Shares,"4,472.00"
+,FMV at Exercise,85.00
+,Strike Price,13.47
+,AMT Adjustment per Share,71.53
+,Total AMT Adjustment,"429,180.00"
+,Exercise Cost (Cash Needed),"80,820.00"
+,,
+"SELL
+Long Term Sales
+
+
+paying the long term sales tax on sale of already exercised options",Long Term Shares Sold,"3,261.00"
+,Selling Price,136.39
+,LT Capital Gains Per Share,122.92
+,Gross Cash Gained,"444,767.79"
+,LT Capital Gains,"400,842.12"
+,FMV at Exercise,31.09
+,AMT Adjustment per Share,17.62
+,Total AMT Adjustment,"-57,458.82"
+"SELL
+Short Term Sales",Short Term Shares Sold,0.00
+,Selling Price,136.39
+,FMV at Sale,85.00
+,Gross Cash Gained,0.00
+,ST Capital Gains Per Share,51.39
+,Total ST Capital Gains,0.00
+,Ordinary Income Increase Per Share,71.53
+,Ordinary Income Increase,0.00
+,,
+INCOME,W2 Income,"425,000.00"
+,401k contributions,
+,Additional Ordinary Income,0.00
+,Payroll Taxable Income,"425,000.00"
+,ST Capital Gains,0.00
+,Total LT Capital Gains,"400,842.12"
+,Net Investment Income,"400,842.12"
+,Adjusted Gross Income,"825,842.12"
+,AMT (Alternative Max Taxable) Income,"1,197,563.30"
+,AMT Exemption,0.00
+,AMT Taxable Income,"1,197,563.30"
+,Standard Deduction,"-30,000.00"
+,Taxable Income,"795,842.12"
+,Ordinary Taxable Income,"395,000.00"
+,Ordinary Taxable Income (excluding STCG),"395,000.00"
+,,
+TAXES,Ordinary Income Tax (Withheld),"80,526.00"
+,"Ordinary Income Tax (Not withheld, from STCG)",0.00
+,Payroll Tax,"28,643.90"
+,,
+,Long Term Capital Gains Tax,"69,915.92"
+,NIIT Tax,"15,232.00"
+,Regular Tax,"165,673.92"
+,,
+,AMT Tax,"330,665.72"
+,Additional AMT Tax,"164,991.80"
+,AMT Credit,"164,991.80"
+,Non-withheld tax,"250,139.72"
+,,
+,TOTAL Tax Liability (greater of AMT vs regular),"330,665.72"
+,,
+ANNUAL EXPECTED CASH FLOW,Exercise Cost (Cash Needed),"-80,820.00"
+,Non-withheld tax,"-250,139.72"
+,Net Income (after withheld tax),"760,597.89"
+,Yearly Expenses,"-156,000.00"
+,Cash Available after expenses and withholding tax,"604,597.89"
+,Cash Savings after AMT and Exercising,"273,638.17"
+,Net Present Value of Cash Flow,"2,970,484.75"
