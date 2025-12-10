@@ -24,7 +24,7 @@ def render_builder():
         # Create New Portfolio Strategy
         with st.expander("➕ Create New Portfolio", expanded=False):
             new_port_name = st.text_input("New Portfolio Name", placeholder="e.g., Aggressive Growth")
-                if st.button("Create Portfolio"):
+            if st.button("Create Portfolio"):
                 if new_port_name and new_port_name not in st.session_state.portfolio_strategies:
                     st.session_state.portfolio_strategies[new_port_name] = {
                         "liquid_assets": 500000.0,

@@ -233,5 +233,21 @@
         }
       ]
     }
+  },
+  "retirement_analysis_inputs": {
+    "current_age": 30,
+    "death_age": 60,
+    "selected_portfolio_strategy": "Assume all liquid",
+    "selected_spending_strategy": "Moderate Spending",
+    "strategy_type": "Essential + Discretionary",
+    "min_spend": 30000.0,
+    "max_spend": 200000.0,
+    "strategy_pct": 5.0,
+    "gk_init_rate": 4.5,
+    "flexible_spending": false,
+    "flexible_floor_pct_slider": 75,
+    "allow_early_retirement_access": true,
+    "early_withdrawal_penalty_pct": 10,
+    "retirement_access_age": 60
   }
 }
