@@ -44,3 +44,7 @@ def render_tax():
     tax_result = engine.run_projection(ordinary_income=ordinary_income, iso_spread=iso_spread)
     st.metric("Total Tax Bill", f"${tax_result.total_tax:,.0f}")
 
+
+
+
+

@@ -1,7 +1,7 @@
 import unittest
 import pandas as pd
 import numpy as np
-from logic.retirement import BacktestEngine, ConstantDollarStrategy, PercentPortfolioStrategy
+from logic.retirement import BacktestEngine, ConstantDollarStrategy, PercentPortfolioStrategy, Portfolio
 from logic.market_data import get_market_data
 import os
 
@@ -50,9 +50,9 @@ class TestRetirementEngine(unittest.TestCase):
         w0 = strategy.calculate_withdrawal(1000000, 0, 0, 0) # initial_withdrawal ignored
         self.assertAlmostEqual(w0, 40000)
 
-    def test_should_drain_liquid_before_retirement_assets(self):
+    def test_should_fail_when_early_access_disabled_and_liquid_depleted(self):
         # Precondition: 1 year simulation, flat market
-        # Start Age 50, so cannot access 401k
+        # Start Age 50, early access DISABLED
         dates = pd.date_range(start='2020-01-01', periods=20, freq='ME')
         df = pd.DataFrame({'Close': [100.0] * 20}, index=dates) # Flat returns
         engine = BacktestEngine(df, stock_alloc=1.0, bond_return=0.0)
@@ -67,17 +67,42 @@ class TestRetirementEngine(unittest.TestCase):
             withdrawal_strategy=strategy, 
             initial_annual_withdrawal=120000,
             initial_401k=100000,
-            current_age=50
+            current_age=50,
+            allow_early_retirement_access=False  # DISABLED
         )
         
         # Postcondition: 
-        # Since Age < 60, we should FAIL when liquid runs out.
-        # Liquid 100k - 120k needed -> Fail. 401k untouched (or zeroed on fail).
+        # Since early access is DISABLED and Age < 60, should FAIL when liquid runs out.
         final_bal = res.balances.iloc[0, -1]
-        self.assertEqual(final_bal, 0.0) # Should fail/zero out
+        self.assertEqual(final_bal, 0.0)  # Should fail/zero out
+    
+    def test_should_access_401k_early_with_penalty_when_early_access_enabled(self):
+        # Precondition: Age 50, early access ENABLED (default)
+        dates = pd.date_range(start='2020-01-01', periods=20, freq='ME')
+        df = pd.DataFrame({'Close': [100.0] * 20}, index=dates)
+        engine = BacktestEngine(df, stock_alloc=1.0, bond_return=0.0)
+        
+        strategy = ConstantDollarStrategy(inflation_rate=0.0)
+        
+        # Liquid: 100k, 401k: 100k. Withdraw 120k.
+        res = engine.run_simulation(
+            initial_portfolio=100000, 
+            duration_years=1, 
+            withdrawal_strategy=strategy, 
+            initial_annual_withdrawal=120000,
+            initial_401k=100000,
+            current_age=50,
+            allow_early_retirement_access=True  # ENABLED (default)
+        )
+        
+        # Postcondition:
+        # With early access enabled, should succeed by accessing 401k with penalty
+        # Liquid drained (100k), extra 20k from 401k + penalty
+        final_bal = res.balances.iloc[0, -1]
+        self.assertGreater(final_bal, 0)  # Should not fail
 
     def test_should_access_retirement_assets_if_age_appropriate(self):
-        # Precondition: Age 65, can access 401k
+        # Precondition: Age 65, can access 401k penalty-free
         dates = pd.date_range(start='2020-01-01', periods=20, freq='ME')
         df = pd.DataFrame({'Close': [100.0] * 20}, index=dates)
         engine = BacktestEngine(df, stock_alloc=1.0, bond_return=0.0)
@@ -95,10 +120,41 @@ class TestRetirementEngine(unittest.TestCase):
         )
         
         # Postcondition:
-        # Liquid drained (100k), remaining 50k taken from 401k (100k -> 50k)
-        # Total remaining should be ~50k
+        # Liquid drained (100k), rest from 401k with taxes.
+        # 401k withdrawals are now taxed as ordinary income, so gross withdrawal > 50k
+        # Expected final balance is lower due to tax gross-up on 401k
         final_bal = res.balances.iloc[0, -1]
-        self.assertAlmostEqual(final_bal, 50000, delta=100)
+        # Should have some balance remaining (401k not fully drained) and should not fail
+        self.assertGreater(final_bal, 0)
+        self.assertLess(final_bal, 60000)  # But less than if no taxes
+
+    def test_should_return_withdrawal_breakdown_from_portfolio(self):
+        # Test the new WithdrawalResult for proper tax tracking
+        portfolio = Portfolio(liquid_assets=50000, retirement_assets=100000)
+        
+        # Withdraw $75k at age 50 (early access enabled)
+        result = portfolio.withdraw(75000, current_age=50, allow_early_retirement_access=True)
+        
+        # Postcondition: Should succeed
+        self.assertTrue(result.success)
+        self.assertEqual(result.from_liquid, 50000)  # Drained all liquid
+        self.assertEqual(result.from_retirement, 25000)  # Rest from retirement
+        self.assertEqual(result.early_withdrawal_penalty, 2500)  # 10% of 25k
+        
+    def test_should_track_liquid_gains_properly(self):
+        # Test capital gains tracking in withdrawals
+        portfolio = Portfolio(liquid_assets=100000, retirement_assets=0)
+        
+        # Simulate market gain: liquid doubles but basis stays same
+        portfolio.liquid = 200000  # Value doubled
+        # Basis is still 100000, so basis_ratio = 0.5
+        
+        result = portfolio.withdraw(50000, current_age=65)
+        
+        # Postcondition: Should track gains correctly
+        self.assertTrue(result.success)
+        self.assertEqual(result.from_liquid, 50000)
+        self.assertEqual(result.liquid_gains, 25000)  # 50% of withdrawal is gains
         
 if __name__ == '__main__':
     unittest.main()

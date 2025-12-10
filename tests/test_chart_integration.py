@@ -27,6 +27,7 @@ class TestChartIntegration(unittest.TestCase):
             withdrawals=sim_withdrawals,
             taxes=pd.DataFrame(),
             total_income=pd.DataFrame(),
+            gross_withdrawals=sim_withdrawals,  # Same as withdrawals for this test
             start_dates=[]
         )
         
@@ -80,4 +81,6 @@ class TestChartIntegration(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
 

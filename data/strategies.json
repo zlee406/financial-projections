@@ -70,25 +70,16 @@
       "mortgage_years": 0,
       "housing_projects": [
         {
-          "name": "New House",
-          "purchase_year": 2030,
-          "price": 500000.0,
-          "down_payment": 100000.0,
-          "interest_rate": 6.5,
+          "name": "Mountain Brook 1.5m",
+          "purchase_year": 2026,
+          "price": 1500000.0,
+          "down_payment": 200000.0,
+          "interest_rate": 5.5,
           "term_years": 30,
           "appreciation_rate": 0.03,
           "selling_costs": 0.06,
-          "sale_year": null
-        },
-        {
-          "name": "New House",
-          "purchase_year": 2030,
-          "price": 500000.0,
-          "down_payment": 100000.0,
-          "interest_rate": 6.5,
-          "term_years": 30,
-          "appreciation_rate": 0.03,
-          "selling_costs": 0.06
+          "sale_year": null,
+          "maintenance_rate": 0.0
         }
       ],
       "has_future_house": false,
@@ -186,5 +177,16 @@
       "bond_return_pct": 4.0,
       "inflation_rate": 0.03
     }
+  },
+  "retirement_analysis_inputs": {
+    "current_age": 30,
+    "death_age": 100,
+    "selected_portfolio_strategy": "Midrange IPO",
+    "selected_spending_strategy": "Moderate Spending",
+    "strategy_type": "Guyton-Klinger",
+    "min_spend": 50000.0,
+    "max_spend": 250000.0,
+    "strategy_pct": 4.0,
+    "gk_init_rate": 4.5
   }
 }

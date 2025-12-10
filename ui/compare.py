@@ -66,3 +66,7 @@ def render_comparison():
                 fig_comp.add_trace(go.Scatter(x=p50.index, y=p50, mode='lines', name=scen_name))
         st.plotly_chart(fig_comp, use_container_width=True)
 
+
+
+
+

@@ -15,6 +15,15 @@ if "spending_strategies" not in st.session_state or "portfolio_strategies" not i
     st.session_state.spending_strategies = loaded_spend
     st.session_state.portfolio_strategies = loaded_port
 
+# Initialize retirement analysis inputs from disk if not already in session
+retirement_keys = ["current_age", "death_age", "selected_portfolio_strategy", "selected_spending_strategy", 
+                   "strategy_type", "min_spend", "max_spend", "strategy_pct", "gk_init_rate"]
+if not all(key in st.session_state for key in retirement_keys):
+    loaded_retirement = persistence.load_retirement_analysis_inputs()
+    for key, value in loaded_retirement.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
 # --- MAIN TABS ---
 tab_builder, tab_fire, tab_compare, tab_tax = st.tabs(["Portfolio & Spending Builder", "Retirement Analysis", "Compare Strategies", "Income & Taxes"])
 
@@ -22,7 +31,7 @@ tab_builder, tab_fire, tab_compare, tab_tax = st.tabs(["Portfolio & Spending Bui
 with tab_builder:
     builder.render_builder()
 
-# --- TAB: RETIREMENT ANALYSIS ---
+# --- TAB: RETIREMENT ANALYSIS (now includes Year Analysis as sub-tabs) ---
 with tab_fire:
     analysis.render_analysis()
 
