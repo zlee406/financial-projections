@@ -185,7 +185,7 @@ def render_builder():
                 hole=0.4,
                 title=f"Total: ${total_curr:,.0f}"
             )
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, width='stretch')
 
 
     with c2:

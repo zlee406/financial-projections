@@ -24,8 +24,8 @@ class BacktestEngine:
     def __init__(
         self,
         market_data: pd.DataFrame,
-        stock_alloc: float = 0.8,
-        bond_return: float = 0.04
+        stock_alloc: float,
+        bond_return: float
     ):
         """
         Initialize the backtest engine with market data.
@@ -212,21 +212,27 @@ class BacktestEngine:
     ) -> float:
         """Compute the initial withdrawal amount based on schedule and strategy limits."""
         initial = config.initial_annual_withdrawal
+        print(f"\tconfig initial withdrawal: {initial}")
         
         if config.spending_schedule is not None:
             initial = config.spending_schedule.iloc[0]
+            print(f"\tno schedule, using first year of schedule: {initial}")
         
         # Apply strategy limits
         initial = strategy.apply_limits(initial)
+        print(f"\tstrategy limits: {initial}")
         
         # Apply schedule floor
         if config.spending_schedule is not None:
             if strategy.flexible_spending:
                 flexible_floor = config.spending_schedule.iloc[0] * strategy.flexible_floor_pct
                 initial = max(initial, flexible_floor)
+                print(f"\tflexible floor: {initial}")
             else:
                 initial = max(initial, config.spending_schedule.iloc[0])
+                print(f"\tno flexible floor, using first year of schedule: {initial}")
         
+        print(f"\tfinal initial withdrawal: {initial}")
         return initial
 
     def _run_single_simulation(
@@ -364,50 +370,6 @@ class BacktestEngine:
 
     def run_simulation(
         self,
-        initial_portfolio: float,
-        duration_years: int,
-        withdrawal_strategy: WithdrawalStrategy,
-        initial_annual_withdrawal: float,
-        spending_schedule: pd.Series = None,
-        initial_401k: float = 0.0,
-        current_age: int = 40,
-        private_stock=None,
-        income_streams: List[IncomeStream] = None,
-        location: str = "California",
-        start_year: int = 2025,
-        allow_early_retirement_access: bool = True,
-        early_withdrawal_penalty_rate: float = 0.10,
-        access_age: int = 60
-    ) -> SimulationResult:
-        """
-        Run backtests with realistic retirement account access rules.
-        
-        This method maintains the original signature for backward compatibility.
-        Internally it creates a SimulationConfig and delegates to _run_single_simulation.
-        """
-        if income_streams is None:
-            income_streams = []
-            
-        config = SimulationConfig(
-            initial_portfolio=initial_portfolio,
-            duration_years=duration_years,
-            initial_annual_withdrawal=initial_annual_withdrawal,
-            spending_schedule=spending_schedule,
-            initial_401k=initial_401k,
-            current_age=current_age,
-            private_stock=private_stock,
-            income_streams=income_streams,
-            location=location,
-            start_year=start_year,
-            allow_early_retirement_access=allow_early_retirement_access,
-            early_withdrawal_penalty_rate=early_withdrawal_penalty_rate,
-            access_age=access_age
-        )
-        
-        return self.run_simulation_with_config(config, withdrawal_strategy)
-
-    def run_simulation_with_config(
-        self,
         config: SimulationConfig,
         withdrawal_strategy: WithdrawalStrategy
     ) -> SimulationResult:
@@ -444,8 +406,17 @@ class BacktestEngine:
         tax_engine = tax.TaxEngine(config.location)
         bond_monthly_rate = (1 + self.bond_return) ** (1/12) - 1
         initial_withdrawal = self._compute_initial_withdrawal(config, withdrawal_strategy)
-
-        for start_idx in range(0, available_months - months_needed, 12):
+        end_idx = available_months - months_needed
+        print("Inputs==================")
+        print(f"Initial withdrawal: {initial_withdrawal}")
+        print(f"Available months: {available_months}")
+        print(f"Months needed: {months_needed}")
+        print(f"Bond monthly rate: {bond_monthly_rate}")
+        print(f"Withdrawal strategy: {withdrawal_strategy}")
+        print(f"Tax engine: {tax_engine}")
+        print(f"Config: {config}")
+        print(f"End index: {end_idx}")
+        for start_idx in range(0, end_idx, 12):
             start_date = self.monthly_data.index[start_idx]
             start_dates.append(start_date)
             
@@ -471,6 +442,7 @@ class BacktestEngine:
             sim_private_stock_gains.append(path_result['private_stock_gains'])
             sim_ipo_proceeds.append(path_result['ipo_proceeds'])
             sim_deposits.append(path_result['deposits'])
+        print("==================")
             
         return SimulationResult(
             balances=pd.DataFrame(sim_balances),

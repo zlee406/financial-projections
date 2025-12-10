@@ -61,6 +61,20 @@ class TestChartIntegration(unittest.TestCase):
             "strategy_type": "Constant Dollar (Targets Schedule)",
             "min_spend": 0.0,
             "max_spend": 200000.0, # CEILING lower than NEED (300k)
+            "private_shares": 0,
+            "private_ipo_price": 0,
+            "private_ipo_year": None,
+            "diversification_start_year": None,
+            "diversification_duration": None,
+            "private_growth_multiplier": 1.0,
+            "income_streams": [],
+            "strategy_pct": 4.0,
+            "gk_init_rate": 4.5,
+            "flexible_spending": False,
+            "flexible_floor_pct": 0.75,
+            "allow_early_retirement_access": True,
+            "early_withdrawal_penalty_rate": 0.10,
+            "retirement_access_age": 60
         }
         
         result, stats, schedule_df = simulation_bridge.run_simulation_wrapper(

@@ -21,6 +21,21 @@ def get_end_of_year_balance_index(year_idx: int) -> int:
     return (year_idx + 1) * 12
 
 
+def get_start_of_year_balance_index(year_idx: int) -> int:
+    """
+    Calculate the correct balance index for start of year.
+    
+    The balances DataFrame has an initial value at index 0, then monthly
+    values appended. So:
+    - Year 0 SOY: Index 0 (initial balance)
+    - Year 1 SOY: Index 12 (after 12 months = EOY year 0)
+    - Year 2 SOY: Index 24 (after 24 months = EOY year 1)
+    
+    Formula: year_idx * 12
+    """
+    return year_idx * 12
+
+
 def render_by_year_view(res, sched_df, current_age, death_age, num_years):
     """Render the aggregate view for a specific year across all simulations."""
     
@@ -106,7 +121,7 @@ def render_by_year_view(res, sched_df, current_age, death_age, num_years):
             }
         )
         fig_income.update_layout(showlegend=False, yaxis_title="Amount ($)")
-        st.plotly_chart(fig_income, use_container_width=True)
+        st.plotly_chart(fig_income, width='stretch')
     
     with c2:
         st.markdown("#### Tax Liability")
@@ -133,7 +148,7 @@ def render_by_year_view(res, sched_df, current_age, death_age, num_years):
             }
         )
         fig_tax.update_layout(showlegend=False, yaxis_title="Amount ($)")
-        st.plotly_chart(fig_tax, use_container_width=True)
+        st.plotly_chart(fig_tax, width='stretch')
         
         st.metric("Effective Tax Rate", f"{effective_rate:.1%}")
     
@@ -171,12 +186,12 @@ def render_by_year_view(res, sched_df, current_age, death_age, num_years):
                 names='Category',
                 title=f"Spending Breakdown (Year {selected_year}, Real $)"
             )
-            st.plotly_chart(fig_spend, use_container_width=True)
+            st.plotly_chart(fig_spend, width='stretch')
             
             st.markdown("#### Spending Details")
             spend_table = spend_df.copy()
             spend_table['Amount'] = spend_table['Amount'].apply(lambda x: f"${x:,.0f}")
-            st.dataframe(spend_table, hide_index=True, use_container_width=True)
+            st.dataframe(spend_table, hide_index=True, width='stretch')
             st.info(f"**Total Required Spending (Real):** ${spend_df['Amount'].sum():,.0f}")
         else:
             st.info("No spending data available for this year.")
@@ -204,7 +219,7 @@ def render_by_year_view(res, sched_df, current_age, death_age, num_years):
     fig_dist.add_vline(x=median_balance, line_dash="dash", line_color="red", 
                        annotation_text=f"Median: ${median_balance:,.0f}")
     
-    st.plotly_chart(fig_dist, use_container_width=True)
+    st.plotly_chart(fig_dist, width='stretch')
     
     st.markdown("#### Portfolio Value Percentiles")
     percentiles = [10, 25, 50, 75, 90]
@@ -217,7 +232,7 @@ def render_by_year_view(res, sched_df, current_age, death_age, num_years):
     
     col_a, col_b, col_c = st.columns([1, 2, 1])
     with col_b:
-        st.dataframe(perc_df, hide_index=True, use_container_width=True)
+        st.dataframe(perc_df, hide_index=True, width='stretch')
     
     survival_rate = (year_balances > 0).sum() / len(year_balances)
     st.metric("Portfolios Still Solvent", f"{survival_rate:.1%}")
@@ -379,7 +394,7 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
         )
         # Add zero line
         fig_portfolio.add_hline(y=0, line_dash="dash", line_color="red", opacity=0.5)
-        st.plotly_chart(fig_portfolio, use_container_width=True)
+        st.plotly_chart(fig_portfolio, width='stretch')
     
     with c2:
         # Chart 2: Annual Withdrawals
@@ -396,7 +411,7 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
             yaxis_title="Withdrawal Amount ($)",
             hovermode='x unified'
         )
-        st.plotly_chart(fig_withdrawals, use_container_width=True)
+        st.plotly_chart(fig_withdrawals, width='stretch')
     
     # Chart 3 & 4: Taxes and Income
     c3, c4 = st.columns(2)
@@ -415,7 +430,7 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
             yaxis_title="Tax Amount ($)",
             hovermode='x unified'
         )
-        st.plotly_chart(fig_taxes, use_container_width=True)
+        st.plotly_chart(fig_taxes, width='stretch')
     
     with c4:
         # Chart 4: Income breakdown (stacked)
@@ -455,7 +470,7 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
             barmode='stack',
             hovermode='x unified'
         )
-        st.plotly_chart(fig_income, use_container_width=True)
+        st.plotly_chart(fig_income, width='stretch')
     
     st.divider()
     
@@ -464,10 +479,15 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
     
     # Build comprehensive dataframe with detailed breakdown
     table_data = []
-    prev_total_value = sim_balances_monthly.iloc[0] if len(sim_balances_monthly) > 0 else 0
     
     for year_idx in range(len(sim_withdrawals)):
         age = current_age + year_idx
+        
+        # Get start-of-year portfolio value
+        soy_month_idx = get_start_of_year_balance_index(year_idx)
+        if soy_month_idx >= len(sim_balances_monthly):
+            soy_month_idx = len(sim_balances_monthly) - 1
+        start_of_year_value = sim_balances_monthly.iloc[soy_month_idx]
         
         # Get end-of-year portfolio value
         month_idx = get_end_of_year_balance_index(year_idx)
@@ -480,25 +500,39 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
         tax = sim_taxes.iloc[year_idx]
         income = sim_income.iloc[year_idx]
         
-        # Get detailed breakdown (if available)
-        portfolio_value = sim_portfolio_values.iloc[year_idx] if sim_portfolio_values is not None and year_idx < len(sim_portfolio_values) else total_value
-        private_stock_value = sim_private_stock_values.iloc[year_idx] if sim_private_stock_values is not None and year_idx < len(sim_private_stock_values) else 0
+        # Get detailed breakdown - End of Year values (if available)
+        portfolio_value_eoy = sim_portfolio_values.iloc[year_idx] if sim_portfolio_values is not None and year_idx < len(sim_portfolio_values) else total_value
+        private_stock_value_eoy = sim_private_stock_values.iloc[year_idx] if sim_private_stock_values is not None and year_idx < len(sim_private_stock_values) else 0
         portfolio_gain = sim_portfolio_gains.iloc[year_idx] if sim_portfolio_gains is not None and year_idx < len(sim_portfolio_gains) else 0
         private_stock_gain = sim_private_stock_gains.iloc[year_idx] if sim_private_stock_gains is not None and year_idx < len(sim_private_stock_gains) else 0
         ipo_proceeds = sim_ipo_proceeds.iloc[year_idx] if sim_ipo_proceeds is not None and year_idx < len(sim_ipo_proceeds) else 0
         
-        # Calculate percentages
-        start_of_year_portfolio = prev_total_value if year_idx == 0 else table_data[year_idx - 1]['Total Value (EOY)']
-        portfolio_gain_pct = (portfolio_gain / start_of_year_portfolio * 100) if start_of_year_portfolio > 0 else 0
+        # Calculate Start of Year values for diversified portfolio
+        # Year 0: Estimate from EOY - gains + gross_withdrawal (what was withdrawn came from portfolio)
+        # Year N: Use EOY value from year N-1
+        if year_idx == 0:
+            # For year 0, estimate SOY = EOY - gains + gross_withdrawal - deposits
+            deposits = res.deposits.iloc[selected_sim, year_idx] if res.deposits is not None and not res.deposits.empty and year_idx < len(res.deposits.columns) else 0
+            portfolio_value_soy = portfolio_value_eoy - portfolio_gain + gross_withdrawal - deposits
+            if portfolio_value_soy < 0:
+                portfolio_value_soy = 0
+        else:
+            # Use previous year's EOY value
+            portfolio_value_soy = sim_portfolio_values.iloc[year_idx - 1] if sim_portfolio_values is not None and year_idx - 1 < len(sim_portfolio_values) else 0
         
-        # For private stock gain %, use start-of-year private stock value if available
-        prev_private_stock = 0
-        if sim_private_stock_values is not None and year_idx > 0 and year_idx - 1 < len(sim_private_stock_values):
-            prev_private_stock = sim_private_stock_values.iloc[year_idx - 1]
-        elif sim_private_stock_values is not None and year_idx == 0:
-            # Estimate initial private stock value
-            prev_private_stock = private_stock_value - private_stock_gain if private_stock_value > 0 else 0
-        private_stock_gain_pct = (private_stock_gain / prev_private_stock * 100) if prev_private_stock > 0 else 0
+        # Calculate Start of Year values for concentrated stock
+        # Year 0: Estimate from EOY - gains + IPO proceeds (proceeds reduce the stock value)
+        # Year N: Use EOY value from year N-1
+        if year_idx == 0:
+            private_stock_value_soy = private_stock_value_eoy - private_stock_gain + ipo_proceeds
+            if private_stock_value_soy < 0:
+                private_stock_value_soy = 0
+        else:
+            private_stock_value_soy = sim_private_stock_values.iloc[year_idx - 1] if sim_private_stock_values is not None and year_idx - 1 < len(sim_private_stock_values) else 0
+        
+        # Calculate percentages using start of year values
+        portfolio_gain_pct = (portfolio_gain / portfolio_value_soy * 100) if portfolio_value_soy > 0 else 0
+        private_stock_gain_pct = (private_stock_gain / private_stock_value_soy * 100) if private_stock_value_soy > 0 else 0
         
         # Get spending requirement from schedule
         if year_idx < len(sched_df):
@@ -512,14 +546,17 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
             w2_income = 0
         
         # Net change in portfolio
-        net_change = total_value - prev_total_value
+        net_change = total_value - start_of_year_value
         
         table_data.append({
             'Year': year_idx,
             'Age': age,
+            'Total Value (SOY)': start_of_year_value,
             'Total Value (EOY)': total_value,
-            'Diversified Portfolio': portfolio_value,
-            'Concentrated Stock': private_stock_value,
+            'Diversified (SOY)': portfolio_value_soy,
+            'Diversified (EOY)': portfolio_value_eoy,
+            'Concentrated (SOY)': private_stock_value_soy,
+            'Concentrated (EOY)': private_stock_value_eoy,
             'Diversified Gains': portfolio_gain,
             'Diversified Gain %': portfolio_gain_pct,
             'Concentrated Gains': private_stock_gain,
@@ -531,8 +568,6 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
             'Net Change': net_change,
             'Required Spend': required_spend
         })
-        
-        prev_total_value = total_value
     
     table_df = pd.DataFrame(table_data)
     
@@ -561,7 +596,8 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
     display_df = table_df.copy()
     
     # Neutral values (just display amount)
-    for col in ['Total Value (EOY)', 'Diversified Portfolio', 'Concentrated Stock', 'Required Spend']:
+    for col in ['Total Value (SOY)', 'Total Value (EOY)', 'Diversified (SOY)', 'Diversified (EOY)', 
+                'Concentrated (SOY)', 'Concentrated (EOY)', 'Required Spend']:
         display_df[col] = display_df[col].apply(format_currency_neutral)
     
     # Positive/negative values (show +/- sign)
@@ -572,7 +608,7 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
     for col in ['Diversified Gain %', 'Concentrated Gain %']:
         display_df[col] = display_df[col].apply(format_pct)
     
-    st.dataframe(display_df, use_container_width=True, hide_index=True, height=400)
+    st.dataframe(display_df, width='stretch', hide_index=True, height=400)
     
     # Download option
     csv = table_df.to_csv(index=False)
@@ -614,7 +650,7 @@ def render_by_simulation_view(res, sched_df, current_age, death_age, num_years):
         for col in ['Base Spending', 'Special Items', 'Mortgage', 'Housing Projects', 'Children', 'Total Required']:
             spending_display_df[col] = spending_display_df[col].apply(lambda x: f"${x:,.0f}" if x > 0 else "-")
         
-        st.dataframe(spending_display_df, use_container_width=True, hide_index=True, height=400)
+        st.dataframe(spending_display_df, width='stretch', hide_index=True, height=400)
         
         # Download option for spending breakdown
         spending_csv = spending_df.to_csv(index=False)

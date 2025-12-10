@@ -2,4 +2,5 @@
 - If running a command in a new shell, prepend it with: conda activate finances && 
 - If the shell already has the finances environment activated, you may run commands directly.
 - Check the terminal metadata to see if conda is already activated before activating it again.
-
+- assume you are already in /home/zach/finances - you do not need to cd into it. Avoid using cd commands unless you are sure you are not already in the correct directory.
+- 

@@ -28,6 +28,10 @@ from logic.retirement.strategies import (
     VPWStrategy,
     FloorCeilingStrategy,
     GuytonKlingerStrategy,
+    ScheduleOnlyStrategy,
+    STRATEGY_DESCRIPTIONS,
+    get_strategy_description,
+    get_all_strategy_names,
 )
 
 # Portfolio management
@@ -58,6 +62,10 @@ __all__ = [
     "VPWStrategy",
     "FloorCeilingStrategy",
     "GuytonKlingerStrategy",
+    "ScheduleOnlyStrategy",
+    "STRATEGY_DESCRIPTIONS",
+    "get_strategy_description",
+    "get_all_strategy_names",
     # Portfolio
     "Portfolio",
     "PrivateStockManager",

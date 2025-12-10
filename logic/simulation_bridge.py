@@ -176,7 +176,11 @@ def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: Po
     
     # Withdrawal Strategy
     w_strategy = None
-    if portfolio_inputs.strategy_type == "Constant Dollar (Targets Schedule)":
+    if portfolio_inputs.strategy_type == "Schedule Only":
+        w_strategy = retirement.ScheduleOnlyStrategy(
+            inflation_rate=portfolio_inputs.inflation_rate
+        )
+    elif portfolio_inputs.strategy_type == "Constant Dollar (Targets Schedule)":
         w_strategy = retirement.ConstantDollarStrategy(
             inflation_rate=portfolio_inputs.inflation_rate,
             min_withdrawal=portfolio_inputs.min_spend,
@@ -196,7 +200,7 @@ def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: Po
     elif portfolio_inputs.strategy_type == "VPW":
         w_strategy = retirement.VPWStrategy(
             start_age=current_age,
-            max_age=100,
+            max_age=death_age,
             inflation_rate=portfolio_inputs.inflation_rate,
             min_withdrawal=portfolio_inputs.min_spend,
             max_withdrawal=portfolio_inputs.max_spend,
@@ -207,15 +211,17 @@ def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: Po
         w_strategy = retirement.GuytonKlingerStrategy(
             initial_rate=portfolio_inputs.gk_init_rate / 100.0,
             portfolio_value=portfolio_inputs.liquid_assets + portfolio_inputs.retirement_assets,
+            inflation_rate=portfolio_inputs.inflation_rate,
+            guardrail_upper=0.20,
+            guardrail_lower=0.20,
             min_withdrawal=portfolio_inputs.min_spend,
             max_withdrawal=portfolio_inputs.max_spend,
-            inflation_rate=portfolio_inputs.inflation_rate,
             flexible_spending=portfolio_inputs.flexible_spending,
             flexible_floor_pct=portfolio_inputs.flexible_floor_pct
         )
 
     engine = retirement.BacktestEngine(
-        df_market,
+        market_data=df_market,
         stock_alloc=portfolio_inputs.stock_alloc_pct / 100.0,
         bond_return=portfolio_inputs.bond_return_pct / 100.0
     )
@@ -243,11 +249,10 @@ def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: Po
             taxable=True
         ))
 
-    # Run simulation
-    result = engine.run_simulation(
+    # Build config with all required parameters
+    config = retirement.SimulationConfig(
         initial_portfolio=portfolio_inputs.liquid_assets,
         duration_years=death_age - current_age,
-        withdrawal_strategy=w_strategy,
         initial_annual_withdrawal=initial_spend_req,
         spending_schedule=spending_schedule,
         initial_401k=portfolio_inputs.retirement_assets,
@@ -260,6 +265,9 @@ def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: Po
         early_withdrawal_penalty_rate=portfolio_inputs.early_withdrawal_penalty_rate,
         access_age=portfolio_inputs.retirement_access_age
     )
+
+    # Run simulation
+    result = engine.run_simulation(config, w_strategy)
     return result, engine.calculate_stats(result, inflation_rate=portfolio_inputs.inflation_rate), schedule_df
 
 # Helper functions to convert from dict to dataclass (for frontend compatibility)
@@ -315,7 +323,10 @@ def dict_to_spending_inputs(data: dict) -> SpendingStrategyInputs:
     )
 
 def dict_to_portfolio_inputs(data: dict) -> PortfolioStrategyInputs:
-    """Convert dictionary to PortfolioStrategyInputs dataclass."""
+    """Convert dictionary to PortfolioStrategyInputs dataclass.
+    
+    All values must be provided by the caller - no defaults are applied.
+    """
     income_streams = []
     for stream in data.get("income_streams", []):
         income_streams.append(IncomeStreamInput(
@@ -336,20 +347,20 @@ def dict_to_portfolio_inputs(data: dict) -> PortfolioStrategyInputs:
         strategy_type=data["strategy_type"],
         min_spend=data["min_spend"],
         max_spend=data["max_spend"],
-        private_shares=data.get("private_shares", 0),
-        private_ipo_price=data.get("private_ipo_price", 0),
-        private_ipo_year=data.get("private_ipo_year"),
-        diversification_start_year=data.get("diversification_start_year"),
-        diversification_duration=data.get("diversification_duration"),
-        private_growth_multiplier=data.get("private_growth_multiplier", 1.0),
+        private_shares=data["private_shares"],
+        private_ipo_price=data["private_ipo_price"],
+        private_ipo_year=data["private_ipo_year"],
+        diversification_start_year=data["diversification_start_year"],
+        diversification_duration=data["diversification_duration"],
+        private_growth_multiplier=data["private_growth_multiplier"],
         income_streams=income_streams,
-        strategy_pct=data.get("strategy_pct", 4.0),
-        gk_init_rate=data.get("gk_init_rate", 4.5),
-        flexible_spending=data.get("flexible_spending", False),
-        flexible_floor_pct=data.get("flexible_floor_pct", 0.75),
-        allow_early_retirement_access=data.get("allow_early_retirement_access", True),
-        early_withdrawal_penalty_rate=data.get("early_withdrawal_penalty_rate", 0.10),
-        retirement_access_age=data.get("retirement_access_age", 60)
+        strategy_pct=data["strategy_pct"],
+        gk_init_rate=data["gk_init_rate"],
+        flexible_spending=data["flexible_spending"],
+        flexible_floor_pct=data["flexible_floor_pct"],
+        allow_early_retirement_access=data["allow_early_retirement_access"],
+        early_withdrawal_penalty_rate=data["early_withdrawal_penalty_rate"],
+        retirement_access_age=data["retirement_access_age"]
     )
 
 def run_simulation_wrapper(strategy_inputs: dict, portfolio_inputs: dict, df_market: pd.DataFrame):

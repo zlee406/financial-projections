@@ -1,6 +1,47 @@
 import pandas as pd
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
+
+
+# Strategy descriptions for UI display
+STRATEGY_DESCRIPTIONS: Dict[str, str] = {
+    "Schedule Only": (
+        "Withdraws exactly what your spending schedule requires each year, adjusted for inflation. "
+        "No min/max limits or guardrails are applied. This is the simplest strategy and shows "
+        "whether your portfolio can sustain your planned spending without any adjustments."
+    ),
+    "Constant Dollar (Targets Schedule)": (
+        "Targets your spending schedule but applies min/max withdrawal limits. If your portfolio "
+        "drops significantly, the strategy will still withdraw at least the minimum amount. "
+        "Good for retirees who want predictable spending with some guardrails."
+    ),
+    "Percent of Portfolio": (
+        "Withdraws a fixed percentage of your current portfolio value each year (e.g., 4%). "
+        "Spending automatically adjusts with market performance - you spend more in good years "
+        "and less in bad years. Highly sustainable but can lead to variable income."
+    ),
+    "VPW": (
+        "Variable Percentage Withdrawal adjusts your withdrawal rate based on remaining life "
+        "expectancy. Younger retirees withdraw less; older retirees withdraw more. Designed "
+        "to deplete your portfolio smoothly over your lifetime while maximizing spending."
+    ),
+    "Guyton-Klinger": (
+        "Uses 'guardrails' to adjust spending when your withdrawal rate drifts too far from "
+        "target. If markets drop and your rate exceeds the upper guardrail, spending is cut 10%. "
+        "If markets rise and your rate falls below the lower guardrail, spending increases 10%. "
+        "Balances stability with portfolio preservation."
+    ),
+}
+
+
+def get_strategy_description(strategy_name: str) -> str:
+    """Get the description for a withdrawal strategy by name."""
+    return STRATEGY_DESCRIPTIONS.get(strategy_name, "No description available.")
+
+
+def get_all_strategy_names() -> list:
+    """Get list of all available strategy names."""
+    return list(STRATEGY_DESCRIPTIONS.keys())
 
 
 class WithdrawalStrategy(ABC):
@@ -59,11 +100,11 @@ class BaseStrategy(WithdrawalStrategy):
     
     def __init__(
         self,
-        inflation_rate: float = 0.03,
-        min_withdrawal: Optional[float] = None,
-        max_withdrawal: Optional[float] = None,
-        flexible_spending: bool = False,
-        flexible_floor_pct: float = 0.75
+        inflation_rate: float,
+        min_withdrawal: Optional[float],
+        max_withdrawal: Optional[float],
+        flexible_spending: bool,
+        flexible_floor_pct: float
     ):
         self.inflation_rate = inflation_rate
         self.min_withdrawal = min_withdrawal
@@ -147,11 +188,11 @@ class PercentPortfolioStrategy(BaseStrategy):
     def __init__(
         self,
         percentage: float,
-        inflation_rate: float = 0.03,
-        min_withdrawal: Optional[float] = None,
-        max_withdrawal: Optional[float] = None,
-        flexible_spending: bool = False,
-        flexible_floor_pct: float = 0.75
+        inflation_rate: float,
+        min_withdrawal: Optional[float],
+        max_withdrawal: Optional[float],
+        flexible_spending: bool,
+        flexible_floor_pct: float
     ):
         super().__init__(inflation_rate, min_withdrawal, max_withdrawal, flexible_spending, flexible_floor_pct)
         self.percentage = percentage
@@ -181,11 +222,13 @@ class EndowmentStrategy(BaseStrategy):
     def __init__(
         self,
         percentage: float,
-        inflation_rate: float = 0.03,
-        min_withdrawal: Optional[float] = None,
-        max_withdrawal: Optional[float] = None
+        inflation_rate: float,
+        min_withdrawal: Optional[float],
+        max_withdrawal: Optional[float],
+        flexible_spending: bool,
+        flexible_floor_pct: float
     ):
-        super().__init__(inflation_rate, min_withdrawal, max_withdrawal)
+        super().__init__(inflation_rate, min_withdrawal, max_withdrawal, flexible_spending, flexible_floor_pct)
         self.percentage = percentage
 
     def calculate_withdrawal(
@@ -209,13 +252,13 @@ class VPWStrategy(BaseStrategy):
     
     def __init__(
         self,
-        start_age: int = 40,
-        max_age: int = 100,
-        inflation_rate: float = 0.03,
-        min_withdrawal: Optional[float] = None,
-        max_withdrawal: Optional[float] = None,
-        flexible_spending: bool = False,
-        flexible_floor_pct: float = 0.75
+        start_age: int,
+        max_age: int,
+        inflation_rate: float,
+        min_withdrawal: Optional[float],
+        max_withdrawal: Optional[float],
+        flexible_spending: bool,
+        flexible_floor_pct: float
     ):
         super().__init__(inflation_rate, min_withdrawal, max_withdrawal, flexible_spending, flexible_floor_pct)
         self.start_age = start_age
@@ -252,13 +295,15 @@ class FloorCeilingStrategy(BaseStrategy):
     
     def __init__(
         self,
-        inflation_rate: float = 0.03,
-        floor_pct: float = 0.85,
-        ceiling_pct: float = 1.15,
-        min_withdrawal: Optional[float] = None,
-        max_withdrawal: Optional[float] = None
+        inflation_rate: float,
+        floor_pct: float,
+        ceiling_pct: float,
+        min_withdrawal: Optional[float],
+        max_withdrawal: Optional[float],
+        flexible_spending: bool,
+        flexible_floor_pct: float
     ):
-        super().__init__(inflation_rate, min_withdrawal, max_withdrawal)
+        super().__init__(inflation_rate, min_withdrawal, max_withdrawal, flexible_spending, flexible_floor_pct)
         self.floor_pct = floor_pct
         self.ceiling_pct = ceiling_pct
         self.base_real_withdrawal = None
@@ -287,13 +332,13 @@ class GuytonKlingerStrategy(BaseStrategy):
         self,
         initial_rate: float,
         portfolio_value: float,
-        inflation_rate: float = 0.03,
-        guardrail_upper: float = 0.20,
-        guardrail_lower: float = 0.20,
-        min_withdrawal: Optional[float] = None,
-        max_withdrawal: Optional[float] = None,
-        flexible_spending: bool = False,
-        flexible_floor_pct: float = 0.75
+        inflation_rate: float,
+        guardrail_upper: float,
+        guardrail_lower: float,
+        min_withdrawal: Optional[float],
+        max_withdrawal: Optional[float],
+        flexible_spending: bool,
+        flexible_floor_pct: float
     ):
         super().__init__(inflation_rate, min_withdrawal, max_withdrawal, flexible_spending, flexible_floor_pct)
         self.initial_rate_pct = initial_rate
@@ -331,4 +376,52 @@ class GuytonKlingerStrategy(BaseStrategy):
         final_amount = self.apply_limits(final_amount)
         final_amount = self.apply_schedule_floor(final_amount, spending_schedule, year)
         return final_amount
+
+
+class ScheduleOnlyStrategy(WithdrawalStrategy):
+    """
+    Withdraws exactly the spending schedule amount with no adjustments.
+    
+    This is the simplest strategy - it takes the scheduled real spending for each
+    year and adjusts it for inflation. No min/max limits, no flexible floors,
+    no guardrails. Useful as a baseline to see if your portfolio can sustain
+    your planned spending without any safety mechanisms.
+    """
+    
+    def __init__(self, inflation_rate: float):
+        self.inflation_rate = inflation_rate
+        self.flexible_spending = False
+        self.flexible_floor_pct = 1.0  # Not used, but required by base class interface
+
+    def calculate_withdrawal(
+        self,
+        current_portfolio_value: float,
+        year: int,
+        initial_withdrawal: float,
+        previous_withdrawal: float,
+        spending_schedule: Optional[pd.Series] = None
+    ) -> float:
+        """
+        Returns exactly the scheduled spending amount, adjusted for inflation.
+        
+        If no schedule is provided, inflates the initial withdrawal each year.
+        """
+        if spending_schedule is not None:
+            required_real = spending_schedule.iloc[year] if year < len(spending_schedule) else spending_schedule.iloc[-1]
+            cumulative_inflation = (1 + self.inflation_rate) ** year
+            return required_real * cumulative_inflation
+        else:
+            # No schedule - just inflate the initial withdrawal
+            if year == 0:
+                return initial_withdrawal
+            else:
+                return previous_withdrawal * (1 + self.inflation_rate)
+
+    def apply_limits(self, amount: float) -> float:
+        """No limits applied - returns amount unchanged."""
+        return amount
+
+    def get_min_max_limits(self) -> Tuple[Optional[float], Optional[float]]:
+        """No limits configured."""
+        return None, None
 

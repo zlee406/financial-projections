@@ -44,9 +44,9 @@ class Portfolio:
         self,
         amount: float,
         current_age: int,
-        access_age: int = 60,
-        allow_early_retirement_access: bool = True,
-        early_withdrawal_penalty_rate: float = 0.10
+        access_age: int,
+        allow_early_retirement_access: bool,
+        early_withdrawal_penalty_rate: float
     ) -> WithdrawalResult:
         """
         Withdraw funds, taking from liquid first then retirement.
@@ -56,7 +56,7 @@ class Portfolio:
             current_age: Current age of retiree
             access_age: Age at which retirement accounts can be accessed penalty-free
             allow_early_retirement_access: If True, allows retirement access before access_age with penalty
-            early_withdrawal_penalty_rate: Penalty rate for early withdrawal (default 10%)
+            early_withdrawal_penalty_rate: Penalty rate for early withdrawal
         
         Returns:
             WithdrawalResult with success status and breakdown of withdrawal sources
@@ -102,17 +102,6 @@ class Portfolio:
         
         result.success = remaining <= 0
         return result
-    
-    def withdraw_simple(
-        self,
-        amount: float,
-        current_age: int,
-        access_age: int = 60,
-        allow_early_retirement_access: bool = True
-    ) -> bool:
-        """Simple withdraw that returns just success/failure for backward compatibility."""
-        result = self.withdraw(amount, current_age, access_age, allow_early_retirement_access)
-        return result.success
 
 
 class PrivateStockManager:

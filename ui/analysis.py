@@ -2,6 +2,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 from logic import market_data, simulation_bridge
+from logic.retirement import get_all_strategy_names, get_strategy_description
 from ui.utils import load_market_data
 from ui.year_analysis import render_by_year_view, render_by_simulation_view
 
@@ -18,9 +19,9 @@ def render_analysis():
         st.subheader("1. Timeline")
         col_age1, col_age2 = st.columns(2)
         with col_age1:
-            st.number_input("Current Age", 30, 80, 40, key="current_age")
+            st.number_input("Current Age", 0, 80, 30, key="current_age")
         with col_age2:
-            st.number_input("Life Expectancy", 70, 110, 95, key="death_age")
+            st.number_input("Life Expectancy", 0, 150, 95, key="death_age")
         
         st.divider()
         st.subheader("2. Select Portfolio")
@@ -41,27 +42,32 @@ def render_analysis():
             selected_strat = st.selectbox("Spending Profile", strat_options, key="selected_spending_strategy")
         
         st.subheader("4. Withdrawal Method")
-        st.selectbox("Method", ["Constant Dollar (Targets Schedule)", "Percent of Portfolio", "VPW", "Guyton-Klinger"], key="strategy_type")
+        st.selectbox("Method", get_all_strategy_names(), key="strategy_type")
+        
+        # Show strategy description
+        st_type = st.session_state.strategy_type
+        st.caption(get_strategy_description(st_type))
         
         # Dynamic Strategy Inputs
-        st_type = st.session_state.strategy_type
         if st_type in ["Percent of Portfolio", "VPW", "Guyton-Klinger"]:
              if st_type == "Guyton-Klinger":
                   st.slider("Initial Rate (%)", 3.0, 6.0, 4.5, 0.1, key="gk_init_rate")
              elif st_type == "Percent of Portfolio":
-                  st.slider("Withdrawal %", 1.0, 10.0, 4.0, 0.1, key="strategy_pct")
+                  st.slider("Withdrawal %", 0.0, 10.0, 4.0, 0.1, key="strategy_pct")
         
-        c_l, c_r = st.columns(2)
-        c_l.number_input("Min Spend Floor ($)", value=30000.0, step=1000.0, key="min_spend")
-        c_r.number_input("Max Spend Ceiling ($)", value=200000.0, step=1000.0, key="max_spend")
-        
-        # Flexible Spending Options
-        st.markdown("##### Spending Flexibility")
-        st.checkbox("Allow Flexible Spending (reduce in downturns)", value=False, key="flexible_spending",
-                    help="If enabled, allows spending to drop below the schedule during market downturns")
-        if st.session_state.get("flexible_spending", False):
-            st.slider("Minimum Spending Floor (%)", 50, 100, 75, 5, key="flexible_floor_pct_slider",
-                      help="Lowest percentage of scheduled spending allowed during downturns")
+        # Min/Max limits don't apply to Schedule Only
+        if st_type != "Schedule Only":
+            c_l, c_r = st.columns(2)
+            c_l.number_input("Min Spend Floor ($)", value=30000.0, step=1000.0, key="min_spend")
+            c_r.number_input("Max Spend Ceiling ($)", value=200000.0, step=1000.0, key="max_spend")
+            
+            # Flexible Spending Options
+            st.markdown("##### Spending Flexibility")
+            st.checkbox("Allow Flexible Spending (reduce in downturns)", value=False, key="flexible_spending",
+                        help="If enabled, allows spending to drop below the schedule during market downturns")
+            if st.session_state.get("flexible_spending", False):
+                st.slider("Minimum Spending Floor (%)", 50, 100, 75, 5, key="flexible_floor_pct_slider",
+                          help="Lowest percentage of scheduled spending allowed during downturns")
         
         # Early Retirement Access Options
         st.markdown("##### Early Retirement Access")
@@ -102,8 +108,8 @@ def render_analysis():
             "current_age": st.session_state.current_age,
             "death_age": st.session_state.death_age,
             "strategy_type": st.session_state.strategy_type,
-            "min_spend": st.session_state.min_spend,
-            "max_spend": st.session_state.max_spend,
+            "min_spend": st.session_state.get("min_spend", 0),
+            "max_spend": st.session_state.get("max_spend", 999999999),
             "strategy_pct": st.session_state.get("strategy_pct", 4.0),
             "gk_init_rate": st.session_state.get("gk_init_rate", 4.5),
             
@@ -199,7 +205,7 @@ def render_aggregate_view(res, stats, sched_df, current_port_inputs, selected_po
         st.subheader("Spending Schedule")
         # Melt for stacked bar
         sched_melt = sched_df.melt(id_vars=["Age"], value_vars=["Base_Real", "Items_Real", "Mortgage_Real", "Housing_Real", "Child_Real"], var_name="Category", value_name="Amount")
-        st.plotly_chart(px.bar(sched_melt, x="Age", y="Amount", color="Category", title="Projected Needs"), use_container_width=True)
+        st.plotly_chart(px.bar(sched_melt, x="Age", y="Amount", color="Category", title="Projected Needs"), width='stretch')
     with g2:
         st.subheader("Portfolio Cone")
         if not res.balances.empty:
@@ -219,7 +225,7 @@ def render_aggregate_view(res, stats, sched_df, current_port_inputs, selected_po
             fig_cone.add_trace(go.Scatter(x=age_axis, y=p50, mode='lines', line=dict(color='rgb(0,100,80)'), name='Median'))
             
             fig_cone.update_layout(xaxis_title="Age", yaxis_title="Portfolio Value ($)")
-            st.plotly_chart(fig_cone, use_container_width=True)
+            st.plotly_chart(fig_cone, width='stretch')
     
     # Row 2: Tax Analysis
     st.divider()
@@ -255,13 +261,13 @@ def render_aggregate_view(res, stats, sched_df, current_port_inputs, selected_po
             fig_tax.add_trace(go.Bar(x=ages, y=median_taxes, name="Tax Liability", marker_color='red'))
             fig_tax.add_trace(go.Scatter(x=ages, y=median_income, name="Total Gross Inflow", mode='lines', line=dict(dash='dot', color='gray')))
             fig_tax.update_layout(title="Median Annual Tax Liability vs Gross Inflow", xaxis_title="Age", yaxis_title="$ Amount")
-            st.plotly_chart(fig_tax, use_container_width=True)
+            st.plotly_chart(fig_tax, width='stretch')
         
         with c_t2:
             # 2. Effective Tax Rate
             fig_rate = px.line(x=ages, y=eff_rate, title="Median Effective Tax Rate", labels={"x": "Age", "y": "Tax Rate"})
             fig_rate.update_yaxes(tickformat=".1%")
-            st.plotly_chart(fig_rate, use_container_width=True)
+            st.plotly_chart(fig_rate, width='stretch')
     else:
         st.info("No tax data available from simulation.")
     

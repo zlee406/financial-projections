@@ -58,16 +58,16 @@ class SimulationConfig:
     initial_portfolio: float
     duration_years: int
     initial_annual_withdrawal: float
-    spending_schedule: Optional[pd.Series] = None
-    initial_401k: float = 0.0
-    current_age: int = 40
-    private_stock: Optional[PrivateStock] = None
-    income_streams: List[IncomeStream] = field(default_factory=list)
-    location: str = "California"
-    start_year: int = 2025
-    allow_early_retirement_access: bool = True
-    early_withdrawal_penalty_rate: float = 0.10
-    access_age: int = 60
+    spending_schedule: Optional[pd.Series]
+    initial_401k: float
+    current_age: int
+    private_stock: Optional[PrivateStock]
+    income_streams: List[IncomeStream]
+    location: str
+    start_year: int
+    allow_early_retirement_access: bool
+    early_withdrawal_penalty_rate: float
+    access_age: int
 
 
 @dataclass

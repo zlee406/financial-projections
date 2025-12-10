@@ -64,7 +64,7 @@ def render_comparison():
                 # Use name if available
                 scen_name = st.session_state.comparison_scenarios[idx].get("name", f"Scenario {idx+1}")
                 fig_comp.add_trace(go.Scatter(x=p50.index, y=p50, mode='lines', name=scen_name))
-        st.plotly_chart(fig_comp, use_container_width=True)
+        st.plotly_chart(fig_comp, width='stretch')
 
 
 

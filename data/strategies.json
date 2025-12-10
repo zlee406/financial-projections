@@ -73,7 +73,7 @@
           "name": "Mountain Brook 1.5m",
           "purchase_year": 2026,
           "price": 1500000.0,
-          "down_payment": 200000.0,
+          "down_payment": 100000.0,
           "interest_rate": 5.5,
           "term_years": 30,
           "appreciation_rate": 0.03,
@@ -144,6 +144,41 @@
           }
         ]
       }
+    },
+    "zero test": {
+      "base_monthly_spend": 0.0,
+      "spending_items": [],
+      "location": "Alabama",
+      "has_mortgage": false,
+      "mortgage_payment": 0.0,
+      "mortgage_years": 0,
+      "housing_projects": [],
+      "has_future_house": false,
+      "num_kids": 0,
+      "children": [],
+      "child_profiles": {}
+    },
+    "Low Spending": {
+      "base_monthly_spend": 5000.0,
+      "location": "Alabama",
+      "has_mortgage": false,
+      "housing_projects": [],
+      "children": [],
+      "child_profiles": {},
+      "spending_items": [
+        {
+          "name": "New Item",
+          "monthly_amount": 500.0,
+          "start_year": 2025,
+          "end_year": 2030
+        },
+        {
+          "name": "New Item",
+          "monthly_amount": 500.0,
+          "start_year": 2025,
+          "end_year": 2030
+        }
+      ]
     }
   },
   "portfolio_strategies": {
@@ -176,17 +211,27 @@
       "stock_alloc_pct": 100.0,
       "bond_return_pct": 4.0,
       "inflation_rate": 0.03
+    },
+    "Assume all liquid": {
+      "liquid_assets": 4640000.0,
+      "retirement_assets": 500000.0,
+      "private_shares": 0.0,
+      "private_ipo_price": 25.0,
+      "private_ipo_year": 2026,
+      "private_growth_multiplier": 1.0,
+      "diversification_start_year": null,
+      "diversification_duration": null,
+      "stock_alloc_pct": 100.0,
+      "bond_return_pct": 4.0,
+      "inflation_rate": 0.03,
+      "income_streams": [
+        {
+          "name": "Job",
+          "start_year": 2025,
+          "end_year": 2030,
+          "annual_amount": 300000.0
+        }
+      ]
     }
-  },
-  "retirement_analysis_inputs": {
-    "current_age": 30,
-    "death_age": 100,
-    "selected_portfolio_strategy": "Midrange IPO",
-    "selected_spending_strategy": "Moderate Spending",
-    "strategy_type": "Guyton-Klinger",
-    "min_spend": 50000.0,
-    "max_spend": 250000.0,
-    "strategy_pct": 4.0,
-    "gk_init_rate": 4.5
   }
 }

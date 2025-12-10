@@ -22,7 +22,7 @@ import numpy as np
 from datetime import datetime
 
 from logic.retirement import (
-    BacktestEngine, ConstantDollarStrategy, PrivateStock, IncomeStream, Portfolio
+    BacktestEngine, ConstantDollarStrategy, PrivateStock, IncomeStream, Portfolio, SimulationConfig
 )
 from logic.lifecycle import SpendingModel
 from logic.simulation_bridge import (
@@ -446,15 +446,30 @@ class TestOffByOneError(unittest.TestCase):
         """
         # Use real market data for sufficient history
         engine = BacktestEngine(self.df_market, stock_alloc=1.0, bond_return=0.0)
-        strategy = ConstantDollarStrategy(inflation_rate=0.0)
+        strategy = ConstantDollarStrategy(
+            inflation_rate=0.0,
+            min_withdrawal=None,
+            max_withdrawal=None,
+            flexible_spending=False,
+            flexible_floor_pct=0.75
+        )
         
-        result = engine.run_simulation(
+        config = SimulationConfig(
             initial_portfolio=100000,
             duration_years=2,  # 2 years minimum
-            withdrawal_strategy=strategy,
             initial_annual_withdrawal=0,  # No withdrawals to keep math simple
-            current_age=30
+            spending_schedule=None,
+            initial_401k=0,
+            current_age=30,
+            private_stock=None,
+            income_streams=[],
+            location="California",
+            start_year=2025,
+            allow_early_retirement_access=True,
+            early_withdrawal_penalty_rate=0.10,
+            access_age=60
         )
+        result = engine.run_simulation(config, strategy)
         
         # Skip if no simulations
         if result.balances.empty:

@@ -1,7 +1,7 @@
 import unittest
 import pandas as pd
 import numpy as np
-from logic.retirement import BacktestEngine, ConstantDollarStrategy, PercentPortfolioStrategy, Portfolio
+from logic.retirement import BacktestEngine, ConstantDollarStrategy, PercentPortfolioStrategy, Portfolio, SimulationConfig
 from logic.market_data import get_market_data
 import os
 
@@ -13,7 +13,7 @@ class TestRetirementEngine(unittest.TestCase):
         df = pd.DataFrame({'Close': np.random.rand(100)}, index=dates)
         
         # Under test
-        engine = BacktestEngine(df)
+        engine = BacktestEngine(df, stock_alloc=0.8, bond_return=0.04)
         
         # Postcondition
         self.assertIsInstance(engine.monthly_data.index, pd.DatetimeIndex)
@@ -28,7 +28,7 @@ class TestRetirementEngine(unittest.TestCase):
         
         # Under test
         try:
-            engine = BacktestEngine(df)
+            engine = BacktestEngine(df, stock_alloc=0.8, bond_return=0.04)
             # Postcondition
             self.assertIsInstance(engine.market_data.index, pd.DatetimeIndex)
             self.assertFalse(engine.monthly_data.empty)
@@ -36,7 +36,13 @@ class TestRetirementEngine(unittest.TestCase):
             self.fail(f"Engine raised unexpected exception with string index: {e}")
 
     def test_should_calculate_withdrawal_given_constant_dollar(self):
-        strategy = ConstantDollarStrategy(inflation_rate=0.03)
+        strategy = ConstantDollarStrategy(
+            inflation_rate=0.03,
+            min_withdrawal=None,
+            max_withdrawal=None,
+            flexible_spending=False,
+            flexible_floor_pct=0.75
+        )
         # Year 0
         w0 = strategy.calculate_withdrawal(1000000, 0, 40000, 40000)
         self.assertAlmostEqual(w0, 40000)
@@ -45,7 +51,14 @@ class TestRetirementEngine(unittest.TestCase):
         self.assertAlmostEqual(w1, 40000 * 1.03)
 
     def test_should_calculate_withdrawal_given_percent_portfolio(self):
-        strategy = PercentPortfolioStrategy(percentage=0.04)
+        strategy = PercentPortfolioStrategy(
+            percentage=0.04,
+            inflation_rate=0.03,
+            min_withdrawal=None,
+            max_withdrawal=None,
+            flexible_spending=False,
+            flexible_floor_pct=0.75
+        )
         # Year 0
         w0 = strategy.calculate_withdrawal(1000000, 0, 0, 0) # initial_withdrawal ignored
         self.assertAlmostEqual(w0, 40000)
@@ -57,19 +70,32 @@ class TestRetirementEngine(unittest.TestCase):
         df = pd.DataFrame({'Close': [100.0] * 20}, index=dates) # Flat returns
         engine = BacktestEngine(df, stock_alloc=1.0, bond_return=0.0)
         
-        strategy = ConstantDollarStrategy(inflation_rate=0.0)
+        strategy = ConstantDollarStrategy(
+            inflation_rate=0.0,
+            min_withdrawal=None,
+            max_withdrawal=None,
+            flexible_spending=False,
+            flexible_floor_pct=0.75
+        )
         
-        # Liquid: 100k, 401k: 100k
-        # Withdraw 120k total
-        res = engine.run_simulation(
-            initial_portfolio=100000, 
-            duration_years=1, 
-            withdrawal_strategy=strategy, 
+        # Build config
+        config = SimulationConfig(
+            initial_portfolio=100000,
+            duration_years=1,
             initial_annual_withdrawal=120000,
+            spending_schedule=None,
             initial_401k=100000,
             current_age=50,
-            allow_early_retirement_access=False  # DISABLED
+            private_stock=None,
+            income_streams=[],
+            location="California",
+            start_year=2025,
+            allow_early_retirement_access=False,  # DISABLED
+            early_withdrawal_penalty_rate=0.10,
+            access_age=60
         )
+        
+        res = engine.run_simulation(config, strategy)
         
         # Postcondition: 
         # Since early access is DISABLED and Age < 60, should FAIL when liquid runs out.
@@ -82,18 +108,32 @@ class TestRetirementEngine(unittest.TestCase):
         df = pd.DataFrame({'Close': [100.0] * 20}, index=dates)
         engine = BacktestEngine(df, stock_alloc=1.0, bond_return=0.0)
         
-        strategy = ConstantDollarStrategy(inflation_rate=0.0)
+        strategy = ConstantDollarStrategy(
+            inflation_rate=0.0,
+            min_withdrawal=None,
+            max_withdrawal=None,
+            flexible_spending=False,
+            flexible_floor_pct=0.75
+        )
         
-        # Liquid: 100k, 401k: 100k. Withdraw 120k.
-        res = engine.run_simulation(
-            initial_portfolio=100000, 
-            duration_years=1, 
-            withdrawal_strategy=strategy, 
+        # Build config
+        config = SimulationConfig(
+            initial_portfolio=100000,
+            duration_years=1,
             initial_annual_withdrawal=120000,
+            spending_schedule=None,
             initial_401k=100000,
             current_age=50,
-            allow_early_retirement_access=True  # ENABLED (default)
+            private_stock=None,
+            income_streams=[],
+            location="California",
+            start_year=2025,
+            allow_early_retirement_access=True,  # ENABLED
+            early_withdrawal_penalty_rate=0.10,
+            access_age=60
         )
+        
+        res = engine.run_simulation(config, strategy)
         
         # Postcondition:
         # With early access enabled, should succeed by accessing 401k with penalty
@@ -107,17 +147,32 @@ class TestRetirementEngine(unittest.TestCase):
         df = pd.DataFrame({'Close': [100.0] * 20}, index=dates)
         engine = BacktestEngine(df, stock_alloc=1.0, bond_return=0.0)
         
-        strategy = ConstantDollarStrategy(inflation_rate=0.0)
-        
-        # Liquid: 100k, 401k: 100k. Withdraw 150k.
-        res = engine.run_simulation(
-            initial_portfolio=100000, 
-            duration_years=1, 
-            withdrawal_strategy=strategy, 
-            initial_annual_withdrawal=150000,
-            initial_401k=100000,
-            current_age=65
+        strategy = ConstantDollarStrategy(
+            inflation_rate=0.0,
+            min_withdrawal=None,
+            max_withdrawal=None,
+            flexible_spending=False,
+            flexible_floor_pct=0.75
         )
+        
+        # Build config
+        config = SimulationConfig(
+            initial_portfolio=100000,
+            duration_years=1,
+            initial_annual_withdrawal=150000,
+            spending_schedule=None,
+            initial_401k=100000,
+            current_age=65,
+            private_stock=None,
+            income_streams=[],
+            location="California",
+            start_year=2025,
+            allow_early_retirement_access=True,
+            early_withdrawal_penalty_rate=0.10,
+            access_age=60
+        )
+        
+        res = engine.run_simulation(config, strategy)
         
         # Postcondition:
         # Liquid drained (100k), rest from 401k with taxes.
@@ -133,7 +188,13 @@ class TestRetirementEngine(unittest.TestCase):
         portfolio = Portfolio(liquid_assets=50000, retirement_assets=100000)
         
         # Withdraw $75k at age 50 (early access enabled)
-        result = portfolio.withdraw(75000, current_age=50, allow_early_retirement_access=True)
+        result = portfolio.withdraw(
+            amount=75000,
+            current_age=50,
+            access_age=60,
+            allow_early_retirement_access=True,
+            early_withdrawal_penalty_rate=0.10
+        )
         
         # Postcondition: Should succeed
         self.assertTrue(result.success)
@@ -149,7 +210,13 @@ class TestRetirementEngine(unittest.TestCase):
         portfolio.liquid = 200000  # Value doubled
         # Basis is still 100000, so basis_ratio = 0.5
         
-        result = portfolio.withdraw(50000, current_age=65)
+        result = portfolio.withdraw(
+            amount=50000,
+            current_age=65,
+            access_age=60,
+            allow_early_retirement_access=True,
+            early_withdrawal_penalty_rate=0.10
+        )
         
         # Postcondition: Should track gains correctly
         self.assertTrue(result.success)
