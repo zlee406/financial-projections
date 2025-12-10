@@ -31,17 +31,18 @@ class TestSpendingModel(unittest.TestCase):
         df = model.generate_schedule()
         
         # Postcondition
+        # Note: Mortgage payments are deflated by EXPECTED_FUTURE_INFLATION (2.5%)
         # 2025 (Age 40): 0
-        # 2026 (Age 41): Down Payment 1 (20k) + Mortgage 1 Starts (8k) = 28k
-        # 2027 (Age 42): 8k
-        # 2028 (Age 43): Down Payment 2 (40k) + Mortgage 1 (8k) + Mortgage 2 (16k) = 64k
+        # 2026 (Age 41): Down Payment 1 (20k) + Mortgage 1 Starts (8k/1.025) = ~27.8k
+        # 2027 (Age 42): 8k/1.025^2 = ~7.6k
+        # 2028 (Age 43): Down Payment 2 (40k) + Mortgage 1 (8k/1.025^3) + Mortgage 2 (16k/1.025^3) = ~62.3k
         
         spends = df.set_index("Age")["Required_Real_Spend"]
         
         self.assertEqual(spends.loc[40], 0)
-        self.assertEqual(spends.loc[41], 28000)
-        self.assertEqual(spends.loc[42], 8000)
-        self.assertEqual(spends.loc[43], 64000)
+        self.assertAlmostEqual(spends.loc[41], 27805, delta=100)  # Down payment (20k) + deflated mortgage
+        self.assertAlmostEqual(spends.loc[42], 7615, delta=100)   # Deflated mortgage payment
+        self.assertAlmostEqual(spends.loc[43], 62286, delta=100)  # Down payment (40k) + deflated mortgages
 
     def test_should_calculate_child_costs_dynamically(self):
         # Precondition
@@ -110,17 +111,16 @@ class TestSpendingModel(unittest.TestCase):
             current_year=2025
         )
         
-        # Under test
-        # inflation_rate = 0.10
-        df = model.generate_schedule(inflation_rate=0.10)
+        # Under test - now uses EXPECTED_FUTURE_INFLATION constant (2.5%)
+        df = model.generate_schedule()
         
         spends = df.set_index("Age")["Required_Real_Spend"]
         
         # 2025 (Age 40): Year 0. Deflator = 1.0. Spend = 10k.
         self.assertAlmostEqual(spends.loc[40], 10000, places=0)
         
-        # 2026 (Age 41): Year 1. Deflator = 1.1. Spend = 10k / 1.1 = 9090.9
-        self.assertAlmostEqual(spends.loc[41], 9090.90, places=1)
+        # 2026 (Age 41): Year 1. Deflator = 1.025. Spend = 10k / 1.025 = 9756.1
+        self.assertAlmostEqual(spends.loc[41], 9756.1, places=0)
 
 if __name__ == '__main__':
     unittest.main()

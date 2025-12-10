@@ -49,11 +49,14 @@ def render_analysis():
         st.caption(get_strategy_description(st_type))
         
         # Dynamic Strategy Inputs
-        if st_type in ["Percent of Portfolio", "VPW", "Guyton-Klinger"]:
+        if st_type in ["Percent of Portfolio", "VPW", "Guyton-Klinger", "Essential + Discretionary"]:
              if st_type == "Guyton-Klinger":
                   st.slider("Initial Rate (%)", 3.0, 6.0, 4.5, 0.1, key="gk_init_rate")
              elif st_type == "Percent of Portfolio":
                   st.slider("Withdrawal %", 0.0, 10.0, 4.0, 0.1, key="strategy_pct")
+             elif st_type == "Essential + Discretionary":
+                  st.slider("Capacity Rate (%)", 3.0, 6.0, 4.0, 0.1, key="strategy_pct",
+                           help="Safe withdrawal rate to determine discretionary spending capacity")
         
         # Min/Max limits don't apply to Schedule Only
         if st_type != "Schedule Only":
@@ -102,7 +105,6 @@ def render_analysis():
             "diversification_duration": p_data.get("diversification_duration"),
             "stock_alloc_pct": p_data.get("stock_alloc_pct"),
             "bond_return_pct": p_data.get("bond_return_pct"),
-            "inflation_rate": p_data.get("inflation_rate", 0.03),
             "income_streams": p_data.get("income_streams", []),
             
             "current_age": st.session_state.current_age,
@@ -203,9 +205,49 @@ def render_aggregate_view(res, stats, sched_df, current_port_inputs, selected_po
     g1, g2 = st.columns(2)
     with g1:
         st.subheader("Spending Schedule")
-        # Melt for stacked bar
-        sched_melt = sched_df.melt(id_vars=["Age"], value_vars=["Base_Real", "Items_Real", "Mortgage_Real", "Housing_Real", "Child_Real"], var_name="Category", value_name="Amount")
-        st.plotly_chart(px.bar(sched_melt, x="Age", y="Amount", color="Category", title="Projected Needs"), width='stretch')
+        
+        # Show Essential vs Discretionary stacked bar chart if available (primary view)
+        if "Essential_Real_Spend" in sched_df.columns and "Discretionary_Real_Spend" in sched_df.columns:
+            # Create stacked bar chart: Essential (bottom, red) + Discretionary (top, blue)
+            ess_disc_melt = sched_df.melt(
+                id_vars=["Age"], 
+                value_vars=["Essential_Real_Spend", "Discretionary_Real_Spend"], 
+                var_name="Type", 
+                value_name="Amount"
+            )
+            # Rename for cleaner legend
+            ess_disc_melt["Type"] = ess_disc_melt["Type"].replace({
+                "Essential_Real_Spend": "Essential (Always Paid)",
+                "Discretionary_Real_Spend": "Discretionary (If Capacity)"
+            })
+            fig_ess_disc = px.bar(
+                ess_disc_melt, 
+                x="Age", 
+                y="Amount", 
+                color="Type",
+                title="Essential vs Discretionary Spending",
+                color_discrete_map={
+                    "Essential (Always Paid)": "#C0392B",  # Red - floor, always covered
+                    "Discretionary (If Capacity)": "#3498DB"  # Blue - ceiling, cut in downturns
+                },
+                category_orders={"Type": ["Essential (Always Paid)", "Discretionary (If Capacity)"]}
+            )
+            fig_ess_disc.update_layout(
+                barmode='stack',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig_ess_disc, use_container_width=True)
+            
+            # Show detailed category breakdown in expander
+            with st.expander("📊 Detailed Category Breakdown"):
+                value_cols = ["Base_Real", "Items_Real", "Mortgage_Real", "Housing_Real", "Child_Real"]
+                sched_melt = sched_df.melt(id_vars=["Age"], value_vars=value_cols, var_name="Category", value_name="Amount")
+                st.plotly_chart(px.bar(sched_melt, x="Age", y="Amount", color="Category", title="By Category"), use_container_width=True)
+        else:
+            # Fallback: show category breakdown if Essential/Discretionary not available
+            value_cols = ["Base_Real", "Items_Real", "Mortgage_Real", "Housing_Real", "Child_Real"]
+            sched_melt = sched_df.melt(id_vars=["Age"], value_vars=value_cols, var_name="Category", value_name="Amount")
+            st.plotly_chart(px.bar(sched_melt, x="Age", y="Amount", color="Category", title="Projected Needs"), use_container_width=True)
     with g2:
         st.subheader("Portfolio Cone")
         if not res.balances.empty:

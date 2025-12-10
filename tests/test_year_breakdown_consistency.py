@@ -39,7 +39,6 @@ def build_midrange_ipo_portfolio_inputs() -> PortfolioStrategyInputs:
         retirement_assets=300000.0,
         stock_alloc_pct=100.0,
         bond_return_pct=4.0,
-        inflation_rate=0.03,
         current_age=30,
         death_age=100,
         strategy_type="Constant Dollar (Targets Schedule)",
@@ -447,7 +446,6 @@ class TestOffByOneError(unittest.TestCase):
         # Use real market data for sufficient history
         engine = BacktestEngine(self.df_market, stock_alloc=1.0, bond_return=0.0)
         strategy = ConstantDollarStrategy(
-            inflation_rate=0.0,
             min_withdrawal=None,
             max_withdrawal=None,
             flexible_spending=False,

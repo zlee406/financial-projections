@@ -27,7 +27,7 @@ def render_comparison():
                 
                 c_s1, c_s2 = st.columns(2)
                 c_s1.write(f"**Liquid**: ${p_in['liquid_assets']:,.0f} | **401k**: ${p_in['retirement_assets']:,.0f}")
-                c_s1.write(f"**Stock**: {p_in['stock_alloc_pct']}% | **Inf**: {p_in.get('inflation_rate',0.03)*100}%")
+                c_s1.write(f"**Stock**: {p_in['stock_alloc_pct']}% | **Inflation**: Historical Data")
                 
                 # Update display for new Spend Model
                 base_m = s_in.get("base_monthly_spend", 0)

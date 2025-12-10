@@ -24,7 +24,7 @@ def render_builder():
         # Create New Portfolio Strategy
         with st.expander("➕ Create New Portfolio", expanded=False):
             new_port_name = st.text_input("New Portfolio Name", placeholder="e.g., Aggressive Growth")
-            if st.button("Create Portfolio"):
+                if st.button("Create Portfolio"):
                 if new_port_name and new_port_name not in st.session_state.portfolio_strategies:
                     st.session_state.portfolio_strategies[new_port_name] = {
                         "liquid_assets": 500000.0,
@@ -33,8 +33,7 @@ def render_builder():
                         "private_ipo_price": 25.0, # Used for both Current & IPO
                         "private_ipo_year": 2026,
                         "stock_alloc_pct": 80.0,
-                        "bond_return_pct": 4.0,
-                        "inflation_rate": 0.03 
+                        "bond_return_pct": 4.0
                     }
                     persistence.save_scenarios_to_disk(st.session_state.spending_strategies, st.session_state.portfolio_strategies) # Auto-save
                     st.success(f"Created '{new_port_name}'!")
@@ -61,7 +60,7 @@ def render_builder():
                 with col_p2:
                     stk = st.number_input("Stocks Allocation (%)", 0.0, 100.0, float(p_data.get("stock_alloc_pct", 80.0)), step=5.0, key=f"edit_stk_{selected_port_edit}")
                     bnd = st.number_input("Bond Return (%)", value=float(p_data.get("bond_return_pct", 4.0)), step=0.1, key=f"edit_bnd_{selected_port_edit}")
-                    inf = st.number_input("Inflation Rate (%)", 0.0, 10.0, float(p_data.get("inflation_rate", 0.03))*100, step=0.1, key=f"edit_inf_{selected_port_edit}") / 100.0
+                    st.caption("💡 Inflation uses historical data aligned with market returns")
 
                 st.markdown("**Private Stock (Applied)**")
                 c_ps1, c_ps2 = st.columns(2)
@@ -142,10 +141,8 @@ def render_builder():
                             "private_growth_multiplier": growth_mult,
                             "diversification_start_year": div_start,
                             "diversification_duration": div_dur,
-                            # "current_private_price": price, # Clean up: Don't save this anymore
                             "stock_alloc_pct": stk,
                             "bond_return_pct": bnd,
-                            "inflation_rate": inf,
                             "income_streams": income_streams
                         }
                         persistence.save_scenarios_to_disk(st.session_state.spending_strategies, st.session_state.portfolio_strategies) # Auto-save
@@ -234,16 +231,30 @@ def render_builder():
                 
                 new_base_monthly = st.number_input("General Monthly Spend ($)", value=float(default_monthly), step=100.0, key=f"edit_bm_{selected_strat_edit}")
                 
+                # Essential percentage slider for base spend
+                default_essential_pct = s_data.get("base_essential_pct", 50)
+                base_essential_pct = st.slider(
+                    "% of Base Spend that is Essential", 
+                    0, 100, 
+                    int(default_essential_pct), 
+                    5,
+                    key=f"edit_ess_pct_{selected_strat_edit}",
+                    help="Essential = groceries, utilities. Discretionary = dining out, entertainment. Only affects Essential+Discretionary strategy."
+                )
+                
                 # Line Items
                 spending_items = s_data.get("spending_items", [])
                 with st.expander("Additional Line Items (e.g. Car, Utils)", expanded=False):
+                    st.caption("💡 Mark items as 'Essential' for costs that must be paid (health insurance, car payment). Non-essential items (travel, dining) can be reduced in market downturns.")
                     if st.button("Add Line Item", key=f"add_li_{selected_strat_edit}"):
-                        spending_items.append({"name": "New Item", "monthly_amount": 500.0, "start_year": 2025, "end_year": 2030})
+                        spending_items.append({"name": "New Item", "monthly_amount": 500.0, "start_year": 2025, "end_year": 2030, "is_essential": True})
                         st.rerun()
                     
                     items_to_remove = []
                     for i, item in enumerate(spending_items):
-                        c_li1, c_li2, c_li3, c_li4, c_li5 = st.columns([2, 1.5, 1.5, 1.5, 0.5])
+                        c_li0, c_li1, c_li2, c_li3, c_li4, c_li5 = st.columns([0.5, 2, 1.5, 1.5, 1.5, 0.5])
+                        # Essential checkbox
+                        item["is_essential"] = c_li0.checkbox("Ess.", value=item.get("is_essential", True), key=f"li_ess_{i}_{selected_strat_edit}", help="Essential = must withdraw")
                         item["name"] = c_li1.text_input("Name", item["name"], key=f"li_nm_{i}_{selected_strat_edit}")
                         item["monthly_amount"] = c_li2.number_input("Monthly ($)", value=float(item["monthly_amount"]), step=100.0, key=f"li_amt_{i}_{selected_strat_edit}")
                         
@@ -462,8 +473,8 @@ def render_builder():
                         if submitted:
                             if new_prof_name and new_prof_name not in child_profiles:
                                 child_profiles[new_prof_name] = [
-                                    {"name": "Early Years", "start_age": 0, "end_age": 4, "monthly_cost": 1250.0},
-                                    {"name": "School", "start_age": 5, "end_age": 18, "monthly_cost": 200.0}
+                                    {"name": "Early Years", "start_age": 0, "end_age": 4, "monthly_cost": 1250.0, "essential_portion": 0.4},
+                                    {"name": "School", "start_age": 5, "end_age": 18, "monthly_cost": 200.0, "essential_portion": 0.6}
                                 ]
                                 # Update session state immediately
                                 if "child_profiles" not in s_data:
@@ -484,13 +495,13 @@ def render_builder():
                         
                         # Phases
                         if st.button(f"Add Phase to {p_name}", key=f"add_ph_p_{p_name}_{selected_strat_edit}"):
-                            phases.append({"name": "New Phase", "start_age": 0, "end_age": 5, "monthly_cost": 500.0})
+                            phases.append({"name": "New Phase", "start_age": 0, "end_age": 5, "monthly_cost": 500.0, "essential_portion": 0.4})
                             # Ensure persistence in session state if this was a fresh dict
                             st.rerun()
                         
                         ph_remove = []
                         for i, ph in enumerate(phases):
-                             c1_ph, c2_ph, c3_ph, c4_ph, c5_ph = st.columns([2, 1, 1, 1.5, 0.5])
+                             c1_ph, c2_ph, c3_ph, c4_ph, c5_ph, c6_ph = st.columns([2, 1, 1, 1.5, 1, 0.5])
                              ph["name"] = c1_ph.text_input("Name", ph["name"], key=f"pp_nm_{p_name}_{i}")
                              ph["start_age"] = c2_ph.number_input("Start", 0, 30, int(ph["start_age"]), key=f"pp_sa_{p_name}_{i}")
                              ph["end_age"] = c3_ph.number_input("End", 0, 30, int(ph["end_age"]), key=f"pp_ea_{p_name}_{i}")
@@ -502,7 +513,11 @@ def render_builder():
                              ph["monthly_cost"] = c4_ph.number_input("Cost/Mo", value=float(val), step=100.0, key=f"pp_ac_{p_name}_{i}")
                              if "annual_cost" in ph: del ph["annual_cost"]
                              
-                             if c5_ph.button("X", key=f"del_pp_{p_name}_{i}"):
+                             # Essential portion slider (default 100% for backwards compatibility)
+                             ess_pct = int(ph.get("essential_portion", 1.0) * 100)
+                             ph["essential_portion"] = c5_ph.number_input("Ess%", 0, 100, ess_pct, key=f"pp_ess_{p_name}_{i}", help="% fixed/essential") / 100.0
+                             
+                             if c6_ph.button("X", key=f"del_pp_{p_name}_{i}"):
                                  ph_remove.append(i)
                         
                         for i in sorted(ph_remove, reverse=True):
@@ -559,17 +574,17 @@ def render_builder():
                             if "phases" not in child: child["phases"] = []
                             
                             if st.button("Add Phase", key=f"add_ph_{i}_{selected_strat_edit}"):
-                                child["phases"].append({"name": "Phase", "start_age": 0, "end_age": 5, "monthly_cost": 500.0})
+                                child["phases"].append({"name": "Phase", "start_age": 0, "end_age": 5, "monthly_cost": 500.0, "essential_portion": 0.4})
                             
                             if st.button("Apply Defaults", key=f"def_ph_{i}_{selected_strat_edit}"):
                                 child["phases"] = [
-                                    {"name": "Daycare", "start_age": 0, "end_age": 4, "monthly_cost": 1250.0},
-                                    {"name": "School", "start_age": 5, "end_age": 18, "monthly_cost": 200.0}
+                                    {"name": "Daycare", "start_age": 0, "end_age": 4, "monthly_cost": 1250.0, "essential_portion": 0.4},
+                                    {"name": "School", "start_age": 5, "end_age": 18, "monthly_cost": 200.0, "essential_portion": 0.6}
                                 ]
 
                             phases_remove = []
                             for p_idx, phase in enumerate(child["phases"]):
-                                c_ph1, c_ph2, c_ph3, c_ph4, c_ph5 = st.columns([2, 1, 1, 1.5, 0.5])
+                                c_ph1, c_ph2, c_ph3, c_ph4, c_ph5, c_ph6 = st.columns([2, 1, 1, 1.2, 0.8, 0.5])
                                 phase["name"] = c_ph1.text_input("Phase", phase["name"], key=f"ph_nm_{i}_{p_idx}_{selected_strat_edit}", label_visibility="collapsed")
                                 phase["start_age"] = c_ph2.number_input("Start", 0, 30, int(phase["start_age"]), key=f"ph_sa_{i}_{p_idx}_{selected_strat_edit}", label_visibility="collapsed")
                                 phase["end_age"] = c_ph3.number_input("End", 0, 30, int(phase["end_age"]), key=f"ph_ea_{i}_{p_idx}_{selected_strat_edit}", label_visibility="collapsed")
@@ -581,7 +596,11 @@ def render_builder():
                                 phase["monthly_cost"] = c_ph4.number_input("Cost/Mo", value=float(val), step=100.0, key=f"ph_ac_{i}_{p_idx}_{selected_strat_edit}", label_visibility="collapsed")
                                 if "annual_cost" in phase: del phase["annual_cost"]
                                 
-                                if c_ph5.button("X", key=f"del_ph_{i}_{p_idx}_{selected_strat_edit}"):
+                                # Essential portion slider
+                                ess_pct = int(phase.get("essential_portion", 1.0) * 100)
+                                phase["essential_portion"] = c_ph5.number_input("Ess%", 0, 100, ess_pct, key=f"ph_ess_{i}_{p_idx}_{selected_strat_edit}", label_visibility="collapsed", help="% fixed/essential") / 100.0
+                                
+                                if c_ph6.button("X", key=f"del_ph_{i}_{p_idx}_{selected_strat_edit}"):
                                     phases_remove.append(p_idx)
                             
                             for p_idx in sorted(phases_remove, reverse=True):
@@ -599,6 +618,7 @@ def render_builder():
                         # Save back to dict
                         new_strat = {
                             "base_monthly_spend": new_base_monthly,
+                            "base_essential_pct": base_essential_pct,
                             "spending_items": spending_items,
                             "location": loc,
                             "has_mortgage": has_m,

@@ -35,7 +35,7 @@ def save_scenarios_to_disk(spending_strategies: Dict[str, Any], portfolio_strate
 def load_retirement_analysis_inputs(filepath: str = DATA_FILE) -> Dict[str, Any]:
     """Loads retirement analysis inputs from JSON file if exists, else returns defaults."""
     defaults = {
-        "current_age": 40,
+        "current_age": 30,
         "death_age": 95,
         "selected_portfolio_strategy": None,
         "selected_spending_strategy": None,
@@ -43,14 +43,23 @@ def load_retirement_analysis_inputs(filepath: str = DATA_FILE) -> Dict[str, Any]
         "min_spend": 30000.0,
         "max_spend": 200000.0,
         "strategy_pct": 4.0,
-        "gk_init_rate": 4.5
+        "gk_init_rate": 4.5,
+        "flexible_spending": False,
+        "flexible_floor_pct_slider": 75,
+        "allow_early_retirement_access": True,
+        "early_withdrawal_penalty_pct": 10,
+        "retirement_access_age": 60
     }
     
     if os.path.exists(filepath):
         try:
             with open(filepath, "r") as f:
                 data = json.load(f)
-                return data.get("retirement_analysis_inputs", defaults)
+                saved_inputs = data.get("retirement_analysis_inputs", {})
+                # Merge saved values with defaults (so new keys get default values)
+                merged = defaults.copy()
+                merged.update(saved_inputs)
+                return merged
         except Exception as e:
             print(f"Error loading retirement analysis inputs: {e}")
             pass

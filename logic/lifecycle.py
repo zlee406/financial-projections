@@ -3,12 +3,19 @@ import numpy as np
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+# Expected future inflation rate for spending schedule projections
+# This is used to deflate fixed nominal payments (like mortgages) to real dollars
+# Using a reasonable long-term average / Fed target
+EXPECTED_FUTURE_INFLATION = 0.025  # 2.5%
+
+
 @dataclass
 class ChildCostPhase:
     name: str
     start_age: int
     end_age: int
     monthly_cost: float
+    essential_portion: float = 1.0  # 0.0 to 1.0: portion of cost that is essential (default 100%)
 
 @dataclass
 class Child:
@@ -17,12 +24,30 @@ class Child:
     phases: List[ChildCostPhase] = field(default_factory=list)
 
     def get_cost_for_year(self, year: int) -> float:
+        """Get total cost for the year (for backwards compatibility)."""
         age = year - self.birth_year
         cost = 0.0
         for phase in self.phases:
             if phase.start_age <= age <= phase.end_age:
                 cost += phase.monthly_cost * 12
         return cost
+    
+    def get_cost_split_for_year(self, year: int) -> tuple:
+        """
+        Get essential and discretionary costs for the year.
+        
+        Returns:
+            tuple: (essential_cost, discretionary_cost)
+        """
+        age = year - self.birth_year
+        essential = 0.0
+        discretionary = 0.0
+        for phase in self.phases:
+            if phase.start_age <= age <= phase.end_age:
+                annual_cost = phase.monthly_cost * 12
+                essential += annual_cost * phase.essential_portion
+                discretionary += annual_cost * (1 - phase.essential_portion)
+        return essential, discretionary
 
 @dataclass
 class SpendingItem:
@@ -30,6 +55,7 @@ class SpendingItem:
     monthly_amount: float
     start_year: Optional[int] = None
     end_year: Optional[int] = None
+    is_essential: bool = True  # True = Essential (always withdrawn), False = Discretionary (conditional)
 
 @dataclass
 class HousingProject:
@@ -63,18 +89,29 @@ class SpendingModel:
     mortgage: Optional[Mortgage] = None # Existing mortgage
     housing_projects: List[HousingProject] = field(default_factory=list)
     spending_items: List[SpendingItem] = field(default_factory=list)
+    base_essential_pct: float = 0.5  # Percentage of base spend that is essential (groceries, utilities vs dining out)
     
     # Legacy field support (can be removed if fully migrated, keeping for safety if app.py passes it)
     base_annual_spend: float = 0.0 
 
-    def generate_schedule(self, inflation_rate: float = 0.0) -> pd.DataFrame:
+    def generate_schedule(self) -> pd.DataFrame:
         """
         Generates a DataFrame with 'Age', 'Required_Real_Spend', and breakdown columns.
-        inflation_rate: used to deflate fixed nominal payments (like mortgages) to real dollars.
+        
+        Also generates 'Essential_Real_Spend' and 'Discretionary_Real_Spend' columns
+        for use with the EssentialDiscretionaryStrategy.
+        
+        Essential costs are always withdrawn regardless of market performance.
+        Discretionary costs are only withdrawn if portfolio capacity allows.
+        
+        Uses EXPECTED_FUTURE_INFLATION constant to deflate fixed nominal payments 
+        (like mortgages) to real dollars.
         """
+        inflation_rate = EXPECTED_FUTURE_INFLATION
+        
         years_to_model = self.death_age - self.current_age + 1
         if years_to_model <= 0:
-            return pd.DataFrame(columns=["Age", "Required_Real_Spend", "Base_Real", "Items_Real", "Mortgage_Real", "Housing_Real", "Child_Real"])
+            return pd.DataFrame(columns=["Age", "Required_Real_Spend", "Base_Real", "Items_Real", "Mortgage_Real", "Housing_Real", "Child_Real", "Essential_Real_Spend", "Discretionary_Real_Spend"])
             
         ages = np.arange(self.current_age, self.death_age + 1)
         schedule = []
@@ -114,9 +151,16 @@ class SpendingModel:
             housing_val = 0.0
             child_val = 0.0
             
+            # Essential vs Discretionary tracking
+            essential_val = 0.0
+            discretionary_val = 0.0
+            
             # 1. Base Spend (Monthly Items + Aggregate)
-            base_val += (self.base_monthly_spend * 12)
-            base_val += self.base_annual_spend # Legacy support
+            # Split between essential and discretionary based on base_essential_pct
+            total_base = (self.base_monthly_spend * 12) + self.base_annual_spend
+            base_val = total_base
+            essential_val += total_base * self.base_essential_pct
+            discretionary_val += total_base * (1 - self.base_essential_pct)
             
             for item in self.spending_items:
                 # Handle optional start/end years
@@ -124,14 +168,20 @@ class SpendingModel:
                 end = item.end_year if item.end_year is not None else 9999
                 
                 if start <= simulation_year <= end:
-                    items_val += (item.monthly_amount * 12)
+                    item_annual = item.monthly_amount * 12
+                    items_val += item_annual
+                    if item.is_essential:
+                        essential_val += item_annual
+                    else:
+                        discretionary_val += item_annual
             
-            # 2. Existing Mortgage (Fixed Nominal -> Real)
+            # 2. Existing Mortgage (Fixed Nominal -> Real) - Always Essential
             if self.mortgage and year_offset < self.mortgage.years_remaining:
                 nominal_annual = self.mortgage.monthly_payment * 12
                 mortgage_val = nominal_annual / deflator
+                essential_val += mortgage_val
                 
-            # 3. Housing Projects
+            # 3. Housing Projects - Always Essential
             for proj_det in project_details_list:
                 hp = proj_det["obj"]
                 
@@ -187,9 +237,19 @@ class SpendingModel:
                         real_pmt = nominal_pmt / deflator
                         housing_val += real_pmt
 
-            # 4. Children
+            # 4. Children - Split between Essential and Discretionary based on phase settings
+            child_essential = 0.0
+            child_discretionary = 0.0
             for child in self.children:
-                child_val += child.get_cost_for_year(simulation_year)
+                ess, disc = child.get_cost_split_for_year(simulation_year)
+                child_essential += ess
+                child_discretionary += disc
+                child_val += ess + disc
+            essential_val += child_essential
+            discretionary_val += child_discretionary
+            
+            # Housing is essential (mortgage, taxes, insurance, maintenance)
+            essential_val += housing_val
                     
             total_real_spend = base_val + items_val + mortgage_val + housing_val + child_val
             
@@ -200,7 +260,9 @@ class SpendingModel:
                 "Items_Real": items_val,
                 "Mortgage_Real": mortgage_val,
                 "Housing_Real": housing_val,
-                "Child_Real": child_val
+                "Child_Real": child_val,
+                "Essential_Real_Spend": essential_val,
+                "Discretionary_Real_Spend": discretionary_val
             })
             
         return pd.DataFrame(schedule)

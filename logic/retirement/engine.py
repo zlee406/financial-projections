@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from logic import tax
 from logic.retirement.models import (
@@ -19,21 +19,26 @@ class BacktestEngine:
     Uses actual market data to simulate portfolio performance across
     multiple starting periods, accounting for taxes, income streams,
     private stock, and various withdrawal strategies.
+    
+    Now uses historical inflation data aligned with market returns for
+    realistic backtesting.
     """
     
     def __init__(
         self,
         market_data: pd.DataFrame,
         stock_alloc: float,
-        bond_return: float
+        bond_return: float,
+        monthly_inflation: Optional[pd.Series] = None
     ):
         """
-        Initialize the backtest engine with market data.
+        Initialize the backtest engine with market data and inflation data.
         
         Args:
             market_data: DataFrame with datetime index and 'Close' column for stocks
             stock_alloc: Stock allocation (0.0 to 1.0)
             bond_return: Fixed annual return for bonds (simplified)
+            monthly_inflation: Series with monthly inflation rates (indexed by month-end dates)
         """
         self.market_data = market_data.copy()
         
@@ -47,6 +52,58 @@ class BacktestEngine:
         
         # Resample to monthly for month-by-month simulation
         self.monthly_data = self.market_data['Close'].resample('ME').ffill().pct_change().dropna()
+        
+        # Store monthly inflation data
+        if monthly_inflation is not None:
+            self.monthly_inflation = monthly_inflation.copy()
+            # Ensure timezone-naive for alignment
+            if self.monthly_inflation.index.tz is not None:
+                self.monthly_inflation.index = self.monthly_inflation.index.tz_localize(None)
+        else:
+            self.monthly_inflation = None
+    
+    def _get_annual_inflation_for_period(
+        self,
+        start_date: pd.Timestamp,
+        num_years: int
+    ) -> List[float]:
+        """
+        Extract annual inflation rates for a simulation period.
+        
+        Args:
+            start_date: Start date of the simulation period
+            num_years: Number of years in the simulation
+            
+        Returns:
+            List of annual inflation rates, one per year
+        """
+        if self.monthly_inflation is None:
+            # Fallback to 3% if no inflation data
+            return [0.03] * num_years
+        
+        annual_rates = []
+        
+        # Make start_date timezone-naive for comparison
+        start_naive = start_date.tz_localize(None) if start_date.tz is not None else start_date
+        
+        for year_offset in range(num_years):
+            # Calculate year boundaries
+            year_start = start_naive + pd.DateOffset(years=year_offset)
+            year_end = start_naive + pd.DateOffset(years=year_offset + 1)
+            
+            # Get monthly inflation rates for this year
+            mask = (self.monthly_inflation.index >= year_start) & (self.monthly_inflation.index < year_end)
+            year_monthly = self.monthly_inflation[mask]
+            
+            if len(year_monthly) > 0:
+                # Compound monthly rates to get annual rate
+                annual_rate = (1 + year_monthly).prod() - 1
+                annual_rates.append(annual_rate)
+            else:
+                # Fallback if no data for this year
+                annual_rates.append(0.03)
+        
+        return annual_rates
 
     def _calculate_gross_withdrawal_needed(
         self,
@@ -402,6 +459,7 @@ class BacktestEngine:
         sim_private_stock_gains = []
         sim_ipo_proceeds = []
         sim_deposits = []
+        sim_annual_inflation = []  # Track inflation for each path
         
         tax_engine = tax.TaxEngine(config.location)
         bond_monthly_rate = (1 + self.bond_return) ** (1/12) - 1
@@ -421,6 +479,15 @@ class BacktestEngine:
             start_dates.append(start_date)
             
             period_returns = self.monthly_data.iloc[start_idx:start_idx + months_needed]
+            
+            # Get historical inflation rates for this simulation period
+            annual_inflation = self._get_annual_inflation_for_period(
+                start_date, config.duration_years
+            )
+            sim_annual_inflation.append(annual_inflation)
+            
+            # Set inflation rates on strategy for this simulation path
+            withdrawal_strategy.set_inflation_rates(annual_inflation)
             
             path_result = self._run_single_simulation(
                 config=config,
@@ -456,11 +523,16 @@ class BacktestEngine:
             portfolio_gains=pd.DataFrame(sim_portfolio_gains),
             private_stock_gains=pd.DataFrame(sim_private_stock_gains),
             ipo_proceeds=pd.DataFrame(sim_ipo_proceeds),
-            deposits=pd.DataFrame(sim_deposits)
+            deposits=pd.DataFrame(sim_deposits),
+            annual_inflation_rates=sim_annual_inflation
         )
 
-    def calculate_stats(self, result: SimulationResult, inflation_rate: float = 0.0) -> dict:
-        """Calculate summary statistics from simulation results."""
+    def calculate_stats(self, result: SimulationResult) -> dict:
+        """Calculate summary statistics from simulation results.
+        
+        Uses historical inflation rates from each simulation path to convert
+        nominal withdrawals to real dollars.
+        """
         if result.balances.empty:
             return {}
             
@@ -468,13 +540,19 @@ class BacktestEngine:
         success_count = (final_values > 0).sum()
         total_sims = len(final_values)
         
-        # Convert nominal withdrawals to real for stats
+        # Convert nominal withdrawals to real for stats using historical inflation
         real_withdrawals = result.withdrawals.copy()
-        if inflation_rate != 0.0:
-            for col in real_withdrawals.columns:
-                year = int(col)
-                deflator = (1 + inflation_rate) ** year
-                real_withdrawals[col] = real_withdrawals[col] / deflator
+        
+        if result.annual_inflation_rates is not None and len(result.annual_inflation_rates) > 0:
+            # Use historical inflation for each simulation path
+            for sim_idx in range(len(result.annual_inflation_rates)):
+                inflation_rates = result.annual_inflation_rates[sim_idx]
+                cumulative = 1.0
+                for year_idx, col in enumerate(real_withdrawals.columns):
+                    if year_idx > 0 and year_idx <= len(inflation_rates):
+                        # Compound previous year's inflation
+                        cumulative *= (1 + inflation_rates[year_idx - 1])
+                    real_withdrawals.iloc[sim_idx, year_idx] = real_withdrawals.iloc[sim_idx, year_idx] / cumulative
         
         min_annual_spend = real_withdrawals.min().min()
         median_annual_spend = real_withdrawals.median().median()

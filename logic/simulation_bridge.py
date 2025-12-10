@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any
-from logic import lifecycle, retirement
+from logic import lifecycle, retirement, market_data
 
 @dataclass
 class ChildInput:
@@ -28,6 +28,7 @@ class SpendingItemInput:
     monthly_amount: float
     start_year: Optional[int] = None
     end_year: Optional[int] = None
+    is_essential: bool = True  # True = Essential (always withdrawn), False = Discretionary
 
 @dataclass
 class MortgageInput:
@@ -44,6 +45,7 @@ class SpendingStrategyInputs:
     mortgage: Optional[MortgageInput] = None
     housing_projects: List[HousingProjectInput] = field(default_factory=list)
     spending_items: List[SpendingItemInput] = field(default_factory=list)
+    base_essential_pct: float = 50.0  # Percentage of base spend that is essential (stored as 0-100)
 
 @dataclass
 class IncomeStreamInput:
@@ -58,7 +60,6 @@ class PortfolioStrategyInputs:
     retirement_assets: float
     stock_alloc_pct: float
     bond_return_pct: float
-    inflation_rate: float
     current_age: int
     death_age: int
     strategy_type: str
@@ -98,7 +99,8 @@ def build_spending_model(inputs: SpendingStrategyInputs, current_age: int, death
                      name=p["name"],
                      start_age=p["start_age"],
                      end_age=p["end_age"],
-                     monthly_cost=p["monthly_cost"]
+                     monthly_cost=p["monthly_cost"],
+                     essential_portion=p.get("essential_portion", 1.0)  # Default 100% essential for backwards compat
                  ))
          else:
              # Use manual phases
@@ -107,7 +109,8 @@ def build_spending_model(inputs: SpendingStrategyInputs, current_age: int, death
                      name=p["name"],
                      start_age=p["start_age"],
                      end_age=p["end_age"],
-                     monthly_cost=p["monthly_cost"]
+                     monthly_cost=p["monthly_cost"],
+                     essential_portion=p.get("essential_portion", 1.0)  # Default 100% essential for backwards compat
                  ))
              
          child_list.append(lifecycle.Child(
@@ -145,7 +148,8 @@ def build_spending_model(inputs: SpendingStrategyInputs, current_age: int, death
             name=item.name,
             monthly_amount=item.monthly_amount,
             start_year=item.start_year,
-            end_year=item.end_year
+            end_year=item.end_year,
+            is_essential=item.is_essential
         ))
     
     return lifecycle.SpendingModel(
@@ -156,33 +160,35 @@ def build_spending_model(inputs: SpendingStrategyInputs, current_age: int, death
         children=child_list,
         mortgage=mortgage,
         housing_projects=housing_objs,
-        spending_items=items
+        spending_items=items,
+        base_essential_pct=inputs.base_essential_pct / 100.0  # Convert from 0-100 to 0-1
     )
 
 def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: PortfolioStrategyInputs, df_market: pd.DataFrame):
     """
     Runs the retirement simulation based on structured inputs and market data.
+    Uses historical inflation data aligned with market returns.
     """
     current_age = portfolio_inputs.current_age
     death_age = portfolio_inputs.death_age
     
     spend_model = build_spending_model(spending_inputs, current_age, death_age)
     
-    schedule_df = spend_model.generate_schedule(inflation_rate=portfolio_inputs.inflation_rate)
+    schedule_df = spend_model.generate_schedule()
     
     spending_schedule = schedule_df["Required_Real_Spend"]
     # Initial spend req uses the schedule's first value
     initial_spend_req = spending_schedule.iloc[0] if not spending_schedule.empty else (spend_model.base_monthly_spend * 12)
     
+    # Get monthly inflation data for backtesting
+    monthly_inflation = market_data.get_monthly_inflation_rates()
+    
     # Withdrawal Strategy
     w_strategy = None
     if portfolio_inputs.strategy_type == "Schedule Only":
-        w_strategy = retirement.ScheduleOnlyStrategy(
-            inflation_rate=portfolio_inputs.inflation_rate
-        )
+        w_strategy = retirement.ScheduleOnlyStrategy()
     elif portfolio_inputs.strategy_type == "Constant Dollar (Targets Schedule)":
         w_strategy = retirement.ConstantDollarStrategy(
-            inflation_rate=portfolio_inputs.inflation_rate,
             min_withdrawal=portfolio_inputs.min_spend,
             max_withdrawal=portfolio_inputs.max_spend,
             flexible_spending=portfolio_inputs.flexible_spending,
@@ -191,7 +197,6 @@ def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: Po
     elif portfolio_inputs.strategy_type == "Percent of Portfolio":
         w_strategy = retirement.PercentPortfolioStrategy(
             percentage=portfolio_inputs.strategy_pct / 100.0,
-            inflation_rate=portfolio_inputs.inflation_rate,
             min_withdrawal=portfolio_inputs.min_spend,
             max_withdrawal=portfolio_inputs.max_spend,
             flexible_spending=portfolio_inputs.flexible_spending,
@@ -201,7 +206,6 @@ def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: Po
         w_strategy = retirement.VPWStrategy(
             start_age=current_age,
             max_age=death_age,
-            inflation_rate=portfolio_inputs.inflation_rate,
             min_withdrawal=portfolio_inputs.min_spend,
             max_withdrawal=portfolio_inputs.max_spend,
             flexible_spending=portfolio_inputs.flexible_spending,
@@ -211,7 +215,6 @@ def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: Po
         w_strategy = retirement.GuytonKlingerStrategy(
             initial_rate=portfolio_inputs.gk_init_rate / 100.0,
             portfolio_value=portfolio_inputs.liquid_assets + portfolio_inputs.retirement_assets,
-            inflation_rate=portfolio_inputs.inflation_rate,
             guardrail_upper=0.20,
             guardrail_lower=0.20,
             min_withdrawal=portfolio_inputs.min_spend,
@@ -219,11 +222,17 @@ def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: Po
             flexible_spending=portfolio_inputs.flexible_spending,
             flexible_floor_pct=portfolio_inputs.flexible_floor_pct
         )
+    elif portfolio_inputs.strategy_type == "Essential + Discretionary":
+        w_strategy = retirement.EssentialDiscretionaryStrategy(
+            capacity_rate=portfolio_inputs.strategy_pct / 100.0,  # Use strategy_pct as capacity rate
+            spending_schedule_df=schedule_df
+        )
 
     engine = retirement.BacktestEngine(
         market_data=df_market,
         stock_alloc=portfolio_inputs.stock_alloc_pct / 100.0,
-        bond_return=portfolio_inputs.bond_return_pct / 100.0
+        bond_return=portfolio_inputs.bond_return_pct / 100.0,
+        monthly_inflation=monthly_inflation
     )
     
     # Construct Private Stock
@@ -263,12 +272,13 @@ def run_simulation(spending_inputs: SpendingStrategyInputs, portfolio_inputs: Po
         start_year=datetime.now().year,
         allow_early_retirement_access=portfolio_inputs.allow_early_retirement_access,
         early_withdrawal_penalty_rate=portfolio_inputs.early_withdrawal_penalty_rate,
-        access_age=portfolio_inputs.retirement_access_age
+        access_age=portfolio_inputs.retirement_access_age,
+        spending_schedule_df=schedule_df  # Full DataFrame for Essential+Discretionary strategy
     )
 
     # Run simulation
     result = engine.run_simulation(config, w_strategy)
-    return result, engine.calculate_stats(result, inflation_rate=portfolio_inputs.inflation_rate), schedule_df
+    return result, engine.calculate_stats(result), schedule_df
 
 # Helper functions to convert from dict to dataclass (for frontend compatibility)
 def dict_to_spending_inputs(data: dict) -> SpendingStrategyInputs:
@@ -301,7 +311,8 @@ def dict_to_spending_inputs(data: dict) -> SpendingStrategyInputs:
             name=item["name"],
             monthly_amount=item["monthly_amount"],
             start_year=item.get("start_year"),
-            end_year=item.get("end_year")
+            end_year=item.get("end_year"),
+            is_essential=item.get("is_essential", True)  # Default to essential for backwards compatibility
         ))
     
     mortgage = None
@@ -319,13 +330,15 @@ def dict_to_spending_inputs(data: dict) -> SpendingStrategyInputs:
         has_mortgage=data.get("has_mortgage", False),
         mortgage=mortgage,
         housing_projects=housing_projects,
-        spending_items=spending_items
+        spending_items=spending_items,
+        base_essential_pct=data.get("base_essential_pct", 50.0)  # Default 50% essential
     )
 
 def dict_to_portfolio_inputs(data: dict) -> PortfolioStrategyInputs:
     """Convert dictionary to PortfolioStrategyInputs dataclass.
     
     All values must be provided by the caller - no defaults are applied.
+    Note: inflation_rate is no longer used - historical data is used instead.
     """
     income_streams = []
     for stream in data.get("income_streams", []):
@@ -341,7 +354,6 @@ def dict_to_portfolio_inputs(data: dict) -> PortfolioStrategyInputs:
         retirement_assets=data["retirement_assets"],
         stock_alloc_pct=data["stock_alloc_pct"],
         bond_return_pct=data["bond_return_pct"],
-        inflation_rate=data["inflation_rate"],
         current_age=data["current_age"],
         death_age=data["death_age"],
         strategy_type=data["strategy_type"],

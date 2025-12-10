@@ -44,7 +44,8 @@ class TestScheduleOnlyStrategy(unittest.TestCase):
     def test_should_withdraw_exact_schedule_given_schedule(self):
         """Schedule Only should return exactly the scheduled amount, adjusted for inflation."""
         # Preconditions
-        strategy = ScheduleOnlyStrategy(inflation_rate=0.03)
+        strategy = ScheduleOnlyStrategy()
+        strategy.set_inflation_rates([0.03] * 10)  # 3% annual inflation for 10 years
         schedule = create_spending_schedule(100000, 10)
         
         withdrawals = []
@@ -76,7 +77,8 @@ class TestScheduleOnlyStrategy(unittest.TestCase):
     def test_should_inflate_initial_given_no_schedule(self):
         """Without a schedule, should inflate initial withdrawal each year."""
         # Preconditions
-        strategy = ScheduleOnlyStrategy(inflation_rate=0.03)
+        strategy = ScheduleOnlyStrategy()
+        strategy.set_inflation_rates([0.03] * 10)  # 3% annual inflation
         
         withdrawals = []
         portfolio_values = []
@@ -110,12 +112,12 @@ class TestConstantDollarStrategy(unittest.TestCase):
         """Constant Dollar should respect min/max limits."""
         # Preconditions
         strategy = ConstantDollarStrategy(
-            inflation_rate=0.03,
             min_withdrawal=50000,
             max_withdrawal=120000,
             flexible_spending=False,
             flexible_floor_pct=0.75
         )
+        strategy.set_inflation_rates([0.03] * 10)  # 3% annual inflation
         schedule = create_spending_schedule(40000, 10)  # Below minimum
         
         withdrawals = []
@@ -150,15 +152,14 @@ class TestPercentPortfolioStrategy(unittest.TestCase):
         """percentage% of portfolio strategy."""
         # Preconditions
         percentage = 0.00
-        inflation_rate = 0.03
         strategy = PercentPortfolioStrategy(
             percentage=percentage,
-            inflation_rate=inflation_rate,
             min_withdrawal=None,
             max_withdrawal=None,
             flexible_spending=False,
             flexible_floor_pct=0.75
         )
+        strategy.set_inflation_rates([0.03] * 20)  # 3% annual inflation
         
         withdrawals = []
         portfolio_values = []
@@ -191,12 +192,12 @@ class TestPercentPortfolioStrategy(unittest.TestCase):
         # Preconditions
         strategy = PercentPortfolioStrategy(
             percentage=0.02,  # Very low rate
-            inflation_rate=0.03,
             min_withdrawal=None,
             max_withdrawal=None,
             flexible_spending=False,  # Hard floor
             flexible_floor_pct=0.75
         )
+        strategy.set_inflation_rates([0.03] * 10)  # 3% annual inflation
         schedule = create_spending_schedule(80000, 10)
         
         withdrawals = []
@@ -234,12 +235,12 @@ class TestVPWStrategy(unittest.TestCase):
         strategy = VPWStrategy(
             start_age=40,
             max_age=100,
-            inflation_rate=0.03,
             min_withdrawal=None,
             max_withdrawal=None,
             flexible_spending=False,
             flexible_floor_pct=0.75
         )
+        strategy.set_inflation_rates([0.03] * 30)  # 3% annual inflation
         
         withdrawals = []
         portfolio_values = []
@@ -277,7 +278,6 @@ class TestGuytonKlingerStrategy(unittest.TestCase):
         strategy = GuytonKlingerStrategy(
             initial_rate=0.04,
             portfolio_value=2_000_000,
-            inflation_rate=0.03,
             guardrail_upper=0.20,
             guardrail_lower=0.20,
             min_withdrawal=None,
@@ -285,6 +285,7 @@ class TestGuytonKlingerStrategy(unittest.TestCase):
             flexible_spending=False,
             flexible_floor_pct=0.75
         )
+        strategy.set_inflation_rates([0.03] * 10)  # 3% annual inflation
         
         withdrawals = []
         portfolio_values = []
@@ -353,43 +354,51 @@ class TestStrategyComparison(unittest.TestCase):
         schedule = create_spending_schedule(80000, 20)
         annual_return = 0.05
         
+        # Create strategies and set inflation rates
+        schedule_only = ScheduleOnlyStrategy()
+        constant_dollar = ConstantDollarStrategy(
+            min_withdrawal=60000,
+            max_withdrawal=150000,
+            flexible_spending=False,
+            flexible_floor_pct=0.75
+        )
+        pct_portfolio = PercentPortfolioStrategy(
+            percentage=0.04,
+            min_withdrawal=None,
+            max_withdrawal=None,
+            flexible_spending=False,
+            flexible_floor_pct=0.75
+        )
+        vpw = VPWStrategy(
+            start_age=50,
+            max_age=100,
+            min_withdrawal=None,
+            max_withdrawal=None,
+            flexible_spending=False,
+            flexible_floor_pct=0.75
+        )
+        gk = GuytonKlingerStrategy(
+            initial_rate=0.04,
+            portfolio_value=portfolio,
+            guardrail_upper=0.20,
+            guardrail_lower=0.20,
+            min_withdrawal=None,
+            max_withdrawal=None,
+            flexible_spending=False,
+            flexible_floor_pct=0.75
+        )
+        
+        # Set inflation rates for all strategies (3% annual for 20 years)
+        inflation_rates = [0.03] * 20
+        for s in [schedule_only, constant_dollar, pct_portfolio, vpw, gk]:
+            s.set_inflation_rates(inflation_rates)
+        
         strategies = {
-            "Schedule Only": ScheduleOnlyStrategy(inflation_rate=0.03),
-            "Constant Dollar": ConstantDollarStrategy(
-                inflation_rate=0.03,
-                min_withdrawal=60000,
-                max_withdrawal=150000,
-                flexible_spending=False,
-                flexible_floor_pct=0.75
-            ),
-            "4% Portfolio": PercentPortfolioStrategy(
-                percentage=0.04,
-                inflation_rate=0.03,
-                min_withdrawal=None,
-                max_withdrawal=None,
-                flexible_spending=False,
-                flexible_floor_pct=0.75
-            ),
-            "VPW (age 50)": VPWStrategy(
-                start_age=50,
-                max_age=100,
-                inflation_rate=0.03,
-                min_withdrawal=None,
-                max_withdrawal=None,
-                flexible_spending=False,
-                flexible_floor_pct=0.75
-            ),
-            "Guyton-Klinger": GuytonKlingerStrategy(
-                initial_rate=0.04,
-                portfolio_value=portfolio,
-                inflation_rate=0.03,
-                guardrail_upper=0.20,
-                guardrail_lower=0.20,
-                min_withdrawal=None,
-                max_withdrawal=None,
-                flexible_spending=False,
-                flexible_floor_pct=0.75
-            ),
+            "Schedule Only": schedule_only,
+            "Constant Dollar": constant_dollar,
+            "4% Portfolio": pct_portfolio,
+            "VPW (age 50)": vpw,
+            "Guyton-Klinger": gk,
         }
         
         print("\n" + "=" * 80)

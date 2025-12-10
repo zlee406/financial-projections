@@ -37,12 +37,12 @@ class TestRetirementEngine(unittest.TestCase):
 
     def test_should_calculate_withdrawal_given_constant_dollar(self):
         strategy = ConstantDollarStrategy(
-            inflation_rate=0.03,
             min_withdrawal=None,
             max_withdrawal=None,
             flexible_spending=False,
             flexible_floor_pct=0.75
         )
+        strategy.set_inflation_rates([0.03] * 10)  # 3% annual inflation
         # Year 0
         w0 = strategy.calculate_withdrawal(1000000, 0, 40000, 40000)
         self.assertAlmostEqual(w0, 40000)
@@ -53,12 +53,12 @@ class TestRetirementEngine(unittest.TestCase):
     def test_should_calculate_withdrawal_given_percent_portfolio(self):
         strategy = PercentPortfolioStrategy(
             percentage=0.04,
-            inflation_rate=0.03,
             min_withdrawal=None,
             max_withdrawal=None,
             flexible_spending=False,
             flexible_floor_pct=0.75
         )
+        strategy.set_inflation_rates([0.03] * 10)  # 3% annual inflation
         # Year 0
         w0 = strategy.calculate_withdrawal(1000000, 0, 0, 0) # initial_withdrawal ignored
         self.assertAlmostEqual(w0, 40000)
@@ -71,12 +71,12 @@ class TestRetirementEngine(unittest.TestCase):
         engine = BacktestEngine(df, stock_alloc=1.0, bond_return=0.0)
         
         strategy = ConstantDollarStrategy(
-            inflation_rate=0.0,
             min_withdrawal=None,
             max_withdrawal=None,
             flexible_spending=False,
             flexible_floor_pct=0.75
         )
+        strategy.set_inflation_rates([0.0] * 10)  # No inflation for this test
         
         # Build config
         config = SimulationConfig(
@@ -109,12 +109,12 @@ class TestRetirementEngine(unittest.TestCase):
         engine = BacktestEngine(df, stock_alloc=1.0, bond_return=0.0)
         
         strategy = ConstantDollarStrategy(
-            inflation_rate=0.0,
             min_withdrawal=None,
             max_withdrawal=None,
             flexible_spending=False,
             flexible_floor_pct=0.75
         )
+        strategy.set_inflation_rates([0.0] * 10)  # No inflation for this test
         
         # Build config
         config = SimulationConfig(
@@ -148,12 +148,12 @@ class TestRetirementEngine(unittest.TestCase):
         engine = BacktestEngine(df, stock_alloc=1.0, bond_return=0.0)
         
         strategy = ConstantDollarStrategy(
-            inflation_rate=0.0,
             min_withdrawal=None,
             max_withdrawal=None,
             flexible_spending=False,
             flexible_floor_pct=0.75
         )
+        strategy.set_inflation_rates([0.0] * 10)  # No inflation for this test
         
         # Build config
         config = SimulationConfig(

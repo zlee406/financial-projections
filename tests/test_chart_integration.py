@@ -5,17 +5,16 @@ from logic import retirement, simulation_bridge
 
 class TestChartIntegration(unittest.TestCase):
     def test_metric_consistency_real_spend(self):
-        # Setup: 300k Real Need, 3% Inflation
+        # Setup: 300k Real Need, using historical inflation data
         market_data = pd.DataFrame({
             'Close': [100.0, 105.0, 110.0] # dummy market data
         }, index=pd.to_datetime(['2020-01-31', '2020-02-29', '2020-03-31'], utc=True))
         
         engine = retirement.BacktestEngine(market_data, stock_alloc=1.0, bond_return=0.0)
         
-        inflation_rate = 0.03
-        # Mock SimulationResult with known Nominal withdrawals
+        # Mock SimulationResult with known Nominal withdrawals and inflation data
         # Year 0: 300k (Real=300k)
-        # Year 1: 309k (Real=300k)
+        # Year 1: 309k (Real=300k with 3% inflation)
         sim_withdrawals = pd.DataFrame({
             0: [300000.0, 300000.0], # Year 0 for 2 sims
             1: [309000.0, 309000.0]  # Year 1 for 2 sims
@@ -28,10 +27,11 @@ class TestChartIntegration(unittest.TestCase):
             taxes=pd.DataFrame(),
             total_income=pd.DataFrame(),
             gross_withdrawals=sim_withdrawals,  # Same as withdrawals for this test
-            start_dates=[]
+            start_dates=[],
+            annual_inflation_rates=[[0.03, 0.03], [0.03, 0.03]]  # 3% inflation for 2 sims
         )
         
-        stats = engine.calculate_stats(mock_result, inflation_rate=inflation_rate)
+        stats = engine.calculate_stats(mock_result)
         
         self.assertAlmostEqual(stats["min_annual_spend"], 300000.0, delta=1.0, 
                                msg="Lowest Annual Spend (Real) should be ~300k")
@@ -55,7 +55,6 @@ class TestChartIntegration(unittest.TestCase):
             "retirement_assets": 0,
             "stock_alloc_pct": 100,
             "bond_return_pct": 0,
-            "inflation_rate": 0.03,
             "current_age": 60,
             "death_age": 62, # Short sim
             "strategy_type": "Constant Dollar (Targets Schedule)",
@@ -90,8 +89,9 @@ class TestChartIntegration(unittest.TestCase):
         
         # Verify first withdrawal in result is Nominal 300k
         self.assertAlmostEqual(result.withdrawals.iloc[0, 0], 300000.0, delta=1.0)
-        # Verify second withdrawal is Nominal 309k
-        self.assertAlmostEqual(result.withdrawals.iloc[0, 1], 309000.0, delta=1.0)
+        # Verify second withdrawal is higher than year 0 (inflation applied)
+        # With historical inflation, we can't predict exact value, but it should be >= year 0
+        self.assertGreaterEqual(result.withdrawals.iloc[0, 1], result.withdrawals.iloc[0, 0])
 
 if __name__ == '__main__':
     unittest.main()

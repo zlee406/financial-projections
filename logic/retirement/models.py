@@ -50,6 +50,8 @@ class SimulationResult:
     private_stock_gains: pd.DataFrame = None  # Rows: simulations, Cols: years (annual $ gain on concentrated stock)
     ipo_proceeds: pd.DataFrame = None  # Rows: simulations, Cols: years (proceeds from stock sales)
     deposits: pd.DataFrame = None  # Rows: simulations, Cols: years (deposits from income surplus)
+    # Historical inflation data per simulation path
+    annual_inflation_rates: List[List[float]] = None  # List of annual inflation rates per simulation path
 
 
 @dataclass
@@ -68,6 +70,8 @@ class SimulationConfig:
     allow_early_retirement_access: bool
     early_withdrawal_penalty_rate: float
     access_age: int
+    # Full spending schedule DataFrame for strategies that need Essential/Discretionary split
+    spending_schedule_df: Optional[pd.DataFrame] = None
 
 
 @dataclass
